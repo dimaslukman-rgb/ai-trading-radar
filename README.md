@@ -1,82 +1,251 @@
-AI Trading Bot
+# AI Trading Radar
 
-Bot ini dibuat dengan inspirasi dari HKUDS AI-Trader.
-Fokusnya adalah bot mandiri untuk backtest, paper trading, sinyal, dan publikasi sinyal ke AI-Trader.
+[![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![MetaTrader 5](https://img.shields.io/badge/MetaTrader%205-Execution-0052CC?style=for-the-badge)](https://www.metatrader5.com/)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg?style=for-the-badge)](LICENSE)
+[![Status](https://img.shields.io/badge/Status-Research%20%2B%20Live%20Execution-orange?style=for-the-badge)](#disclaimer)
 
-Fitur utama:
+**AI Trading Radar** is a Python-based algorithmic trading system for XAUUSD scalping research, signal generation, broker execution, and real-time browser monitoring.
 
-- Backtest dari file CSV.
-- Sinyal buy, sell, hold dengan skor momentum, RSI, tren, dan volatilitas.
-- Risk manager dengan max posisi, max trade, stop loss, dan take profit.
-- Paper execution. Tidak ada order uang nyata.
-- Adapter publish sinyal ke AI-Trader lewat AI_TRADER_TOKEN.
-- Tanpa dependensi berat. Cukup Python standar.
+Built for operators who need a compact trading stack: strategy logic, risk controls, MT5 execution, Telegram alerts, historical backtests, and a live dashboard in one repository.
 
-Struktur:
+> Quantitative Researcher | Algorithmic Trader | Trading Systems Architect
 
-- aitrader_bot/config.py untuk konfigurasi.
-- aitrader_bot/strategy.py untuk model sinyal.
-- aitrader_bot/risk.py untuk kontrol risiko.
-- aitrader_bot/backtest.py untuk simulasi.
-- aitrader_bot/ai_trader_client.py untuk integrasi AI-Trader.
-- data/sample_prices.csv untuk contoh data.
+## About
 
-Cara pakai:
+This project focuses on short-horizon XAUUSD trading workflows:
 
-1. Masuk ke folder project.
+- Research strategy behavior on historical OHLCV data.
+- Generate structured `BUY`, `SELL`, and `HOLD` signals.
+- Execute through MetaTrader 5 when a live broker profile is configured.
+- Track account equity, open positions, entries, current price, floating P&L, and radar confidence through a local web dashboard.
+- Keep sensitive broker credentials out of Git by using local-only config files.
 
-cd outputs/ai-trading-bot
+The bot includes two primary execution styles:
 
-2. Jalankan backtest contoh.
+- **Normal Finex profile**: slower 5-minute scalping settings with session and news filters.
+- **Ultra M1 profile**: aggressive 1-minute scalping settings for faster signal rotation and tighter TP/SL logic.
 
+Safe config templates are included. Real broker credentials are intentionally ignored by Git.
+
+## Features
+
+- Multi-broker abstraction with Paper, MT5, CCXT/Binance, and Alpaca adapters.
+- XAUUSD scalping strategy with EMA, MACD, Bollinger Bands, Stochastic, RSI, and momentum velocity.
+- Risk manager for dynamic position sizing, stop loss, take profit, lock profit, and timeout exits.
+- Real-time browser dashboard at `http://127.0.0.1:9190`.
+- Open position table with ticket, side, entry, current price, pips, and P&L.
+- Telegram notification support for signals, lifecycle events, and errors.
+- CSV backtesting and signal generation CLI.
+- TradingView chart dashboard helper.
+- Windows-friendly launcher scripts and executable build tooling.
+
+## Technical Stack
+
+- **Language**: Python
+- **Execution**: MetaTrader 5 Python API, paper broker simulation
+- **Market Connectors**: MT5, CCXT, Alpaca
+- **Strategy Layer**: EMA, MACD, RSI, Bollinger Bands, Stochastic, volatility and momentum scoring
+- **Dashboard**: Python `http.server`, Server-Sent Events, HTML/CSS/JavaScript, TradingView widget
+- **Notifications**: Telegram Bot API
+- **Packaging**: PyInstaller, Inno Setup
+- **Testing**: Python `unittest`
+- **Operating Target**: Windows desktop/VPS with MetaTrader 5 installed
+
+## Requirements
+
+Minimum:
+
+- Python 3.10 or newer
+- Git
+- MetaTrader 5 terminal, required only for MT5 live execution
+- A broker account configured inside MT5, required only for live execution
+
+Install Python dependencies:
+
+```powershell
+pip install -r requirements.txt
+```
+
+Core CLI/backtest functionality can run with the Python standard library. MT5, GUI, Telegram, and exchange connectors require the optional packages listed in `requirements.txt`.
+
+## Quick Start
+
+Clone the repository:
+
+```powershell
+git clone https://github.com/dimaslukman-rgb/ai-trading-radar.git
+cd ai-trading-radar
+```
+
+Run the test suite:
+
+```powershell
+python -m unittest discover -s tests -v
+```
+
+Run a sample backtest:
+
+```powershell
 python -m aitrader_bot.cli backtest --config config.example.json --data data/sample_prices.csv
+```
 
-3. Ambil sinyal dari data contoh.
+Generate a signal from local CSV data:
 
+```powershell
 python -m aitrader_bot.cli signal --config config.example.json --data data/sample_prices.csv
+```
 
-4. Ambil sinyal dari Yahoo Finance.
+## MT5 Live Setup
 
-python -m aitrader_bot.cli signal --config config.example.json --range 6mo --interval 1d
+Copy an example config and fill in local credentials:
 
-5. Publish sinyal ke AI-Trader.
+```powershell
+copy config_xauusd_m1_ultra.example.json config_xauusd_m1_ultra.json
+```
 
-set AI_TRADER_TOKEN=token_kamu
-python -m aitrader_bot.cli signal --config config.example.json --data data/sample_prices.csv --publish
+Edit only the local config file:
 
-TradingView dashboard:
+```json
+"telegram": {
+  "enabled": true,
+  "bot_token": "YOUR_TELEGRAM_BOT_TOKEN",
+  "chat_id": "YOUR_CHAT_ID"
+},
+"brokers": {
+  "mt5": {
+    "backend": "mt5",
+    "server": "YOUR_MT5_SERVER",
+    "login": 12345678,
+    "password": "YOUR_MT5_PASSWORD"
+  }
+}
+```
 
-Double click file ini:
+`config_xauusd_m1_ultra.json`, `config_finex.json`, and other live config files are ignored by Git.
 
-open-tradingview-dashboard.bat
+## Run Live Bot
 
-Atau buka langsung:
+Start the M1 MT5 live engine in the background:
 
-tradingview-dashboard.html
+```powershell
+Start-Process -FilePath "C:\Users\ASUS\AppData\Local\Python\pythoncore-3.14-64\python.exe" -ArgumentList @('run_scalping.py','--config','config_xauusd_m1_ultra.json','--broker','mt5','--no-gui','--no-tray','--auto-start') -WorkingDirectory "." -WindowStyle Hidden
+```
 
-Dashboard ini memakai TradingView Advanced Chart Widget.
-Fungsinya untuk melihat chart real-time.
-Bot Python belum membaca data langsung dari TradingView.
+Open the dashboard:
 
-Untuk instruksi lengkap, baca:
+```text
+http://127.0.0.1:9190
+```
 
-TRADINGVIEW_SETUP.txt
+Check bot process ID:
 
-Format CSV:
+```powershell
+Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*run_scalping.py*' } | Select-Object ProcessId,CommandLine
+```
 
-date,open,high,low,close,volume
-2026-01-01,42000,43000,41500,42800,1000
+Stop the bot:
 
-Parameter penting:
+```powershell
+Stop-Process -Id YOUR_PROCESS_ID
+```
 
-- min_buy_score: makin tinggi, bot makin selektif untuk buy.
-- min_sell_score: makin dekat ke 0, bot makin cepat sell.
-- max_position_pct: batas nilai posisi dari total equity.
-- max_trade_pct: batas nilai 1 trade dari total equity.
-- stop_loss_pct: batas rugi per posisi.
-- take_profit_pct: target profit per posisi.
+Or stop every running bot process:
 
-Referensi:
+```powershell
+Get-CimInstance Win32_Process |
+  Where-Object { $_.CommandLine -like '*run_scalping.py*' } |
+  ForEach-Object { Stop-Process -Id $_.ProcessId }
+```
 
-https://github.com/HKUDS/AI-Trader
-https://ai4trade.ai
+## Project Structure
+
+```text
+aitrader_bot/
+  app/             Web dashboard, GUI, tray, logging, Telegram notifier
+  broker/          Paper, MT5, CCXT, Alpaca broker adapters
+  backtest.py      Historical simulation engine
+  scalping.py      XAUUSD scalping strategy and risk manager
+  strategy.py      Momentum signal model
+  config.py        Typed config loader
+data/              Sample and XAUUSD research datasets
+tests/             Unit tests
+run_scalping.py    Windows app/live engine launcher
+```
+
+## Configuration Profiles
+
+- `config.example.json`: safe default paper config.
+- `config_finex.example.json`: sanitized 5-minute XAUUSD profile.
+- `config_xauusd_m1_ultra.example.json`: sanitized aggressive M1 profile.
+
+Local live profiles are excluded from Git:
+
+- `config_finex.json`
+- `config_finex_aggressive_1m.json`
+- `config_xauusd_m1_ultra.json`
+
+## Safety Model
+
+The repository is designed to avoid accidental credential leakage:
+
+- Live configs are ignored by `.gitignore`.
+- Build artifacts, logs, cache files, and executable output are ignored.
+- Public examples contain blank tokens, blank passwords, and `null` login values.
+- The dashboard is local-only by default at `127.0.0.1`.
+
+Before pushing changes, scan staged files:
+
+```powershell
+git diff --cached --name-only
+git grep -n --cached -I -E "password|bot_token|api_key|secret|login"
+```
+
+## Roadmap
+
+- Strategy performance reports by market session.
+- Risk dashboard with daily loss limits and max drawdown controls.
+- More explicit long/short position handling across all broker adapters.
+- Backtest parity between live engine exits and historical simulations.
+- Docker or Windows Task Scheduler deployment recipes.
+
+## Contributing
+
+Contributions, issues, and feature requests are welcome.
+
+Before opening a pull request:
+
+- Keep credentials, logs, and live broker configs out of commits.
+- Run `python -m unittest discover -s tests -v`.
+- Keep changes scoped and explain trading-behavior changes clearly.
+- Include sample data or tests when changing strategy/risk logic.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full contribution guide.
+
+## License
+
+This project is licensed under the **GNU General Public License v3.0**.
+
+See [LICENSE](LICENSE) for the full license text.
+
+## Disclaimer
+
+This software is provided for research, education, and engineering experimentation.
+
+It is **not financial advice**, investment advice, tax advice, legal advice, or a recommendation to buy or sell any instrument. Trading forex, CFDs, commodities, crypto, stocks, futures, or leveraged products involves substantial risk and may result in partial or total loss of capital.
+
+You are solely responsible for:
+
+- Reviewing the source code before use.
+- Testing in paper/demo environments.
+- Verifying broker settings, lot sizes, leverage, margin, symbols, spreads, and execution behavior.
+- Monitoring the bot while it is running.
+- Complying with local laws, broker rules, and exchange rules.
+
+The authors and contributors are not responsible for losses, damages, missed profits, account restrictions, broker errors, API outages, execution slippage, or any other consequence of using this software.
+
+## Contact
+
+- GitHub: [@dimaslukman-rgb](https://github.com/dimaslukman-rgb)
+- Repository: [dimaslukman-rgb/ai-trading-radar](https://github.com/dimaslukman-rgb/ai-trading-radar)
+
