@@ -757,7 +757,7 @@ connectSSE();
 // ── Polling fallback ─────────────────────────────────────────
 setInterval(() => {
   fetch('/api/status').then(r => r.json()).then(updateUI).catch(() => {});
-}, 3000);
+}, 10000);
 
 // ── Initial load ─────────────────────────────────────────────
 fetch('/api/status').then(r => r.json()).then(d => { updateUI(d); if (d.logs) logCount = d.logs.length; }).catch(() => {});

@@ -81,6 +81,21 @@ def update(**kwargs: Any) -> None:
             _recompute_equity_metrics()
 
 
+def reset_account_metrics(equity: float, balance: float) -> None:
+    """Reset account baseline for a fresh bot run.
+
+    This makes dashboard % P/L start from 0.00% whenever the trading engine
+    connects after a process restart or manual start.
+    """
+    with _lock:
+        _dashboard_data["equity"] = equity
+        _dashboard_data["initial_equity"] = equity
+        _dashboard_data["peak_equity"] = equity
+        _dashboard_data["pl_pct"] = 0.0
+        _dashboard_data["drawdown_pct"] = 0.0
+        _dashboard_data["balance"] = balance
+
+
 def _recompute_equity_metrics() -> None:
     """Recompute peak_equity, pl_pct and drawdown_pct from current equity."""
     equity = _dashboard_data["equity"]

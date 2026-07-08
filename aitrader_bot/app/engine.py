@@ -33,6 +33,8 @@ from .web_dashboard import notify as notify_web
 
 log = setup_logging(__name__)
 
+ACCOUNT_REFRESH_SECONDS = 10.0
+
 
 # ═══════════════════════════════════════════════════════════════════════
 #  Analysis helpers for AI Trading Radar dashboard
@@ -368,15 +370,13 @@ class TradingEngine:
         try:
             self.broker.connect()
             acct = self.broker.get_account()
+            dd.reset_account_metrics(acct.equity, acct.balance)
             self._put(f"account:{acct.equity}")
             self._put("status:running")
             self._current_status = "running"
             log.info(f"Connected - Account: {acct.balance} {acct.currency}, Equity: {acct.equity}")
             dd.update(
                 status="running",
-                equity=acct.equity,
-                initial_equity=acct.equity,
-                balance=acct.balance,
             )
             dd.add_log(f"Connected - Equity: ${acct.equity:.2f}")
             notify_web()
@@ -396,6 +396,21 @@ class TradingEngine:
         bars: list[PriceBar] = []
         candle_history: list = []
         entry_time: datetime | None = None  # Track entry timestamp for timeout exit
+        last_account_refresh = time.monotonic()
+
+        def refresh_account(force: bool = False) -> None:
+            nonlocal last_account_refresh
+            now_tick = time.monotonic()
+            if not force and now_tick - last_account_refresh < ACCOUNT_REFRESH_SECONDS:
+                return
+            try:
+                acct = self.broker.get_account()
+                last_account_refresh = now_tick
+                self._put(f"account:{acct.equity}")
+                dd.update(equity=acct.equity, balance=acct.balance)
+                notify_web()
+            except Exception:
+                pass
 
         # ── Main loop ──────────────────────────────────────────────────
         while not self._stop.is_set():
@@ -426,6 +441,7 @@ class TradingEngine:
                         if self._stop.is_set():
                             break
                         time.sleep(5)
+                        refresh_account()
                     continue
 
                 # 1b. News filter — pause near high-impact events
@@ -445,6 +461,7 @@ class TradingEngine:
                             if self._stop.is_set():
                                 break
                             time.sleep(5)
+                            refresh_account()
                         continue
 
                 # 1c. Spread check — abort if spread > max allowed
@@ -457,6 +474,7 @@ class TradingEngine:
                         if self._stop.is_set():
                             break
                         time.sleep(10)
+                        refresh_account()
                     continue
 
                 # 2. Fetch candles from broker (configurable timeframe)
@@ -683,15 +701,8 @@ class TradingEngine:
                 )
                 notify_web()
 
-                # 6. Update account info
-                if iteration % 5 == 0:
-                    try:
-                        acct = self.broker.get_account()
-                        self._put(f"account:{acct.equity}")
-                        log.info(f"account:{acct.equity}")
-                        dd.update(equity=acct.equity, balance=acct.balance)
-                    except Exception:
-                        pass
+                # 6. Update dashboard account metrics on a 10-second cadence.
+                refresh_account()
 
             except Exception as e:
                 self._put(f"error:loop error: {e}")
@@ -708,6 +719,7 @@ class TradingEngine:
                 if self._stop.is_set():
                     break
                 time.sleep(5)
+                refresh_account()
 
         # Cleanup
         tg.send_shutdown("engine stopped")
