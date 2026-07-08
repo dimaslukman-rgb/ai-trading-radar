@@ -51,6 +51,13 @@ _dashboard_data: dict[str, Any] = {
     "sentiment": {"bullish": 0, "bearish": 0, "neutral": 100},
     "volatility": "NORMAL",
     "news_events": [],
+    "macro_sentiment": {
+        "bias": "NEUTRAL",
+        "risk_score": 25,
+        "summary": "Waiting for macro catalyst scan...",
+        "updated_at": "",
+        "drivers": [],
+    },
     "analysis": {
         "trend": False,
         "ema": False,
@@ -185,5 +192,6 @@ def snapshot() -> dict[str, Any]:
             "sentiment": dict(_dashboard_data["sentiment"]),
             "volatility": _dashboard_data["volatility"],
             "news_events": list(_dashboard_data["news_events"]),
+            "macro_sentiment": dict(_dashboard_data["macro_sentiment"]),
             "analysis": dict(_dashboard_data["analysis"]),
         }

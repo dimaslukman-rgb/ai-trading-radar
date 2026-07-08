@@ -27,7 +27,7 @@ from aitrader_bot.scalping import ScalpingStrategy, ScalpingRiskManager
 
 from . import dashboard_data as dd
 from .logger import setup_logging
-from .news_filter import get_upcoming_event
+from .news_filter import get_macro_sentiment, get_upcoming_event
 from .notifier import TelegramNotifier
 from .web_dashboard import notify as notify_web
 
@@ -564,6 +564,7 @@ class TradingEngine:
                 senti = _compute_sentiment(closes=[b.close for b in bars], highs=[b.high for b in bars], lows=[b.low for b in bars])
                 vol = _compute_volatility([b.close for b in bars])
                 sltp = _compute_sl_tp(quote.last, signal.action, strategy.config, symbol=symbol)
+                macro = get_macro_sentiment()
 
                 # Update dashboard radar data
                 dd.update(
@@ -579,6 +580,8 @@ class TradingEngine:
                     sessions=sessions,
                     sentiment=senti,
                     volatility=vol,
+                    news_events=macro["events"],
+                    macro_sentiment=macro,
                     analysis=analysis,
                 )
 

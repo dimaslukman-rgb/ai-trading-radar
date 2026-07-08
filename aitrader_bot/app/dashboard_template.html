@@ -131,6 +131,26 @@ body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--
 .news-name{font-size:.8rem;color:var(--text);flex:1}
 .news-countdown{font-family:'Consolas',monospace;font-size:.75rem;color:var(--yellow);min-width:60px;text-align:right}
 .no-news{text-align:center;padding:20px;color:var(--text3);font-size:.8rem}
+.macro-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:12px}
+.macro-bias{font-size:1.15rem;font-weight:800;letter-spacing:1px;text-transform:uppercase}
+.macro-bias.neutral{color:var(--text2)}
+.macro-bias.watch{color:var(--yellow)}
+.macro-bias.volatility{color:var(--orange)}
+.macro-bias.bullish{color:var(--green)}
+.macro-bias.bearish{color:var(--red)}
+.macro-risk{text-align:right;min-width:120px}
+.macro-risk .score{font-family:'Consolas',monospace;font-size:1.25rem;font-weight:800}
+.macro-summary{font-size:.85rem;color:var(--text2);line-height:1.45;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;margin-bottom:12px}
+.macro-drivers{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.macro-driver{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px;min-height:120px}
+.macro-driver.active{border-color:var(--orange);background:rgba(255,102,0,.05)}
+.macro-driver .md-name{font-size:.76rem;font-weight:800;color:var(--text);margin-bottom:6px}
+.macro-driver .md-meta{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:7px}
+.macro-driver .md-pill{font-size:.58rem;font-weight:800;letter-spacing:.5px;text-transform:uppercase;padding:2px 6px;border-radius:4px;background:rgba(100,116,139,.16);color:var(--text2)}
+.macro-driver .md-pill.high{background:rgba(255,102,0,.15);color:var(--orange)}
+.macro-driver .md-pill.active{background:rgba(255,170,0,.16);color:var(--yellow)}
+.macro-driver .md-bias{font-size:.68rem;font-weight:700;color:var(--cyan);margin-bottom:6px}
+.macro-driver .md-note{font-size:.68rem;line-height:1.35;color:var(--text3)}
 
 /* ── Trade History Table ────────────────────────────────────── */
 .table-wrap{overflow-x:auto;background:var(--bg2);border:1px solid var(--border);border-radius:10px}
@@ -174,7 +194,8 @@ tr:hover{background:rgba(0,255,136,.02)}
 
 /* ── Responsive ─────────────────────────────────────────────── */
 @media(max-width:1024px){.grid-2,.grid-3{grid-template-columns:1fr}.grid-4{grid-template-columns:repeat(2,1fr)}.radar-details{grid-template-columns:repeat(3,1fr)}.factor-grid{grid-template-columns:repeat(3,1fr)}}
-@media(max-width:600px){.container{padding:8px}.grid-4{grid-template-columns:1fr 1fr}.radar-details{grid-template-columns:repeat(2,1fr)}.factor-grid{grid-template-columns:1fr 1fr}.header{flex-direction:column;gap:10px;text-align:center}}
+@media(max-width:1024px){.macro-drivers{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:600px){.container{padding:8px}.grid-4{grid-template-columns:1fr 1fr}.radar-details{grid-template-columns:repeat(2,1fr)}.factor-grid{grid-template-columns:1fr 1fr}.macro-drivers{grid-template-columns:1fr}.macro-head{flex-direction:column}.macro-risk{text-align:left}.header{flex-direction:column;gap:10px;text-align:center}}
 
 /* ── Animations ─────────────────────────────────────────────── */
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
@@ -310,6 +331,23 @@ tr:hover{background:rgba(0,255,136,.02)}
 </div>
 
 <!-- ═══ SENTIMENT + VOLATILITY + RISK ═══════════════════════ -->
+<div class="section-title"><span class="dot"></span> MACRO SENTIMENT</div>
+<div class="card" style="margin-bottom:16px">
+  <div class="macro-head">
+    <div>
+      <div class="label">XAUUSD NEWS BIAS</div>
+      <div class="macro-bias neutral" id="macroBias">NEUTRAL</div>
+    </div>
+    <div class="macro-risk">
+      <div class="label">MACRO RISK</div>
+      <div class="score" id="macroRiskScore" style="color:var(--yellow)">25%</div>
+      <div style="font-size:.68rem;color:var(--text3)" id="macroUpdated">--:--:--</div>
+    </div>
+  </div>
+  <div class="macro-summary" id="macroSummary">Waiting for macro catalyst scan...</div>
+  <div class="macro-drivers" id="macroDrivers"></div>
+</div>
+
 <div class="grid-3">
   <!-- Market Sentiment -->
   <div class="card">
@@ -628,6 +666,43 @@ function updateUI(data) {
   });
   $('activeSession').textContent = data.current_session || '—';
 
+  // Macro sentiment
+  const macro = data.macro_sentiment || {};
+  const macroBias = macro.bias || 'NEUTRAL';
+  const macroRisk = Number(macro.risk_score || 0);
+  const macroBiasEl = $('macroBias');
+  macroBiasEl.textContent = macroBias;
+  const mb = macroBias.toLowerCase();
+  macroBiasEl.className = 'macro-bias ' + (
+    mb.includes('bull') ? 'bullish' :
+    mb.includes('bear') ? 'bearish' :
+    mb.includes('volatility') ? 'volatility' :
+    mb.includes('watch') || mb.includes('risk') ? 'watch' : 'neutral'
+  );
+  $('macroRiskScore').textContent = macroRisk + '%';
+  $('macroRiskScore').style.color = macroRisk >= 80 ? 'var(--red)' : macroRisk >= 60 ? 'var(--orange)' : macroRisk >= 40 ? 'var(--yellow)' : 'var(--green)';
+  $('macroSummary').textContent = macro.summary || 'Waiting for macro catalyst scan...';
+  $('macroUpdated').textContent = macro.updated_at ? 'Updated ' + macro.updated_at : '--:--:--';
+  const drivers = macro.drivers || [];
+  const driversEl = $('macroDrivers');
+  if (drivers.length > 0) {
+    driversEl.innerHTML = drivers.map(d => {
+      const active = (d.status || '').includes('ACTIVE');
+      const impactClass = (d.impact || '').toLowerCase();
+      return `<div class="macro-driver ${active ? 'active' : ''}">
+        <div class="md-name">${d.name || '--'}</div>
+        <div class="md-meta">
+          <span class="md-pill ${active ? 'active' : ''}">${d.status || 'MONITOR'}</span>
+          <span class="md-pill ${impactClass}">${d.impact || 'MEDIUM'}</span>
+        </div>
+        <div class="md-bias">${d.bias || 'Neutral'}</div>
+        <div class="md-note">${d.note || ''}</div>
+      </div>`;
+    }).join('');
+  } else {
+    driversEl.innerHTML = '<div class="no-news">No macro drivers available</div>';
+  }
+
   // Sentiment
   const senti = data.sentiment || {bullish:0,bearish:0,neutral:100};
   const b = senti.bullish || 0, be = senti.bearish || 0, n = senti.neutral || 100;
@@ -665,7 +740,7 @@ function updateUI(data) {
         <span class="news-time">${timeStr}</span>
         <span class="news-impact ${impClass}">${n.impact || 'LOW'}</span>
         <span class="news-currency">${n.currency || '--'}</span>
-        <span class="news-name">${n.name || '--'}</span>
+        <span class="news-name">${n.name || '--'} <span style="color:var(--text3)">- ${n.category || 'Macro'} / ${n.bias || 'WATCH'}</span></span>
         <span class="news-countdown">${countdown}</span>
       </div>`;
     }).join('');

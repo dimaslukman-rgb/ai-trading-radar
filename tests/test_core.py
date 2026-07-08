@@ -225,6 +225,16 @@ class IndicatorTests(unittest.TestCase):
 # ══════════════════════════════════════════════════════════════════════════
 #  Config tests
 # ══════════════════════════════════════════════════════════════════════════
+class NewsFilterTests(unittest.TestCase):
+    def test_macro_sentiment_includes_fed_and_events(self) -> None:
+        from aitrader_bot.app.news_filter import get_macro_sentiment
+
+        snap = get_macro_sentiment(datetime(2026, 7, 8, 12, 0))
+        self.assertIn("bias", snap)
+        self.assertIn("risk_score", snap)
+        self.assertTrue(any(d["name"] == "Fed / FOMC" for d in snap["drivers"]))
+        self.assertTrue(any(e["name"] == "CPI Jul" for e in snap["events"]))
+
 
 class ConfigTests(unittest.TestCase):
     def test_config_defaults(self) -> None:
