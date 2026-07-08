@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Trading Radar — Dashboard</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0e17;--bg2:#111827;--bg3:#1a2035;--bg4:#222b45;
+  --border:#2a3550;--border2:#3a4a6a;
+  --text:#e2e8f0;--text2:#94a3b8;--text3:#64748b;
+  --green:#00ff88;--green2:#22c55e;--green3:#065f46;
+  --red:#ff4444;--red2:#ef4444;--red3:#7f1d1d;
+  --yellow:#ffaa00;--yellow2:#f59e0b;
+  --orange:#ff6600;--cyan:#00d4ff;--purple:#a855f7;
+  --neon-glow:0 0 20px rgba(0,255,136,0.3);
+}
+body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+.container{max-width:1440px;margin:0 auto;padding:16px}
+
+/* ── Header ─────────────────────────────────────────────────── */
+.header{display:flex;align-items:center;justify-content:space-between;padding:16px 24px;background:linear-gradient(135deg,#111827 0%,#1a2035 100%);border:1px solid var(--border);border-radius:12px;margin-bottom:16px}
+.header-left{display:flex;align-items:center;gap:14px}
+.radar-icon{width:48px;height:48px;border-radius:50%;background:conic-gradient(var(--green),var(--cyan),var(--green));display:flex;align-items:center;justify-content:center;font-size:22px;animation:pulse 2s infinite;box-shadow:var(--neon-glow)}
+@keyframes pulse{0%,100%{box-shadow:0 0 10px rgba(0,255,136,.3)}50%{box-shadow:0 0 25px rgba(0,255,136,.6)}}
+.header h1{font-size:1.4rem;font-weight:700;background:linear-gradient(90deg,var(--green),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:1px}
+.header h1 small{display:block;font-size:.65rem;font-weight:400;letter-spacing:2px;-webkit-text-fill-color:var(--text2);text-transform:uppercase}
+.header-right{display:flex;align-items:center;gap:16px}
+.status-badge{padding:4px 14px;border-radius:20px;font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:1px}
+.status-badge.running{background:rgba(0,255,136,.15);color:var(--green);border:1px solid rgba(0,255,136,.3)}
+.status-badge.stopped{background:rgba(100,116,139,.15);color:var(--text3);border:1px solid rgba(100,116,139,.3)}
+.status-badge.error{background:rgba(255,68,68,.15);color:var(--red);border:1px solid rgba(255,68,68,.3)}
+.status-badge.starting{background:rgba(255,170,0,.15);color:var(--yellow);border:1px solid rgba(255,170,0,.3)}
+.clock{font-family:'Consolas',monospace;font-size:.85rem;color:var(--text2)}
+
+/* ── Grid Layouts ───────────────────────────────────────────── */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+
+/* ── Section Titles ─────────────────────────────────────────── */
+.section-title{font-size:.8rem;text-transform:uppercase;letter-spacing:2px;color:var(--text3);margin-bottom:10px;padding-left:4px;display:flex;align-items:center;gap:8px}
+.section-title .dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green)}
+
+/* ── Cards ──────────────────────────────────────────────────── */
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px;transition:border-color .2s}
+.card:hover{border-color:var(--border2)}
+.card-sm{padding:12px}
+.card .label{font-size:.7rem;text-transform:uppercase;color:var(--text3);letter-spacing:1px;margin-bottom:6px}
+.card .value{font-size:1.2rem;font-weight:700;font-family:'Consolas',monospace}
+.card .value.green{color:var(--green)}
+.card .value.red{color:var(--red)}
+.card .value.yellow{color:var(--yellow)}
+.card .value.cyan{color:var(--cyan)}
+
+/* ── Radar Pair Card (main) ─────────────────────────────────── */
+.radar-card{background:linear-gradient(135deg,var(--bg2) 0%,var(--bg3) 100%);border:1px solid var(--border);border-radius:12px;padding:20px;position:relative;overflow:hidden}
+.radar-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.radar-card.buy::before{background:linear-gradient(90deg,var(--green),var(--cyan))}
+.radar-card.sell::before{background:linear-gradient(90deg,var(--red),var(--orange))}
+.radar-card.wait::before{background:linear-gradient(90deg,var(--yellow),var(--orange))}
+.radar-card.neutral::before{background:var(--border)}
+.radar-pair-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.radar-pair-name{font-size:1.3rem;font-weight:800;color:var(--text);letter-spacing:1px}
+.radar-signal-badge{padding:6px 18px;border-radius:8px;font-size:.9rem;font-weight:800;text-transform:uppercase;letter-spacing:1px}
+.radar-signal-badge.buy{background:rgba(0,255,136,.15);color:var(--green);border:1px solid rgba(0,255,136,.3);text-shadow:0 0 10px rgba(0,255,136,.5)}
+.radar-signal-badge.sell{background:rgba(255,68,68,.15);color:var(--red);border:1px solid rgba(255,68,68,.3);text-shadow:0 0 10px rgba(255,68,68,.5)}
+.radar-signal-badge.wait{background:rgba(255,170,0,.15);color:var(--yellow);border:1px solid rgba(255,170,0,.3)}
+.radar-signal-badge.no-trade{background:rgba(100,116,139,.15);color:var(--text3);border:1px solid rgba(100,116,139,.3)}
+.radar-details{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+.radar-detail{text-align:center}
+.radar-detail .rd-label{font-size:.65rem;text-transform:uppercase;color:var(--text3);letter-spacing:1px;margin-bottom:4px}
+.radar-detail .rd-value{font-size:1rem;font-weight:700;font-family:'Consolas',monospace}
+.radar-price{font-size:1.6rem;font-weight:800;font-family:'Consolas',monospace;color:var(--cyan);text-shadow:0 0 10px rgba(0,212,255,.3)}
+
+/* ── Confidence Bar ─────────────────────────────────────────── */
+.conf-bar-wrap{margin-top:14px}
+.conf-bar-outer{height:8px;background:var(--bg);border-radius:4px;overflow:hidden;margin-bottom:6px}
+.conf-bar-inner{height:100%;border-radius:4px;transition:width .5s ease;background:linear-gradient(90deg,var(--red),var(--yellow),var(--green))}
+.conf-bar-text{display:flex;justify-content:space-between;font-size:.7rem;color:var(--text3)}
+.conf-cat{font-weight:700;font-size:.75rem}
+
+/* ── Analysis Factors ───────────────────────────────────────── */
+.factor-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.factor-item{display:flex;align-items:center;gap:6px;padding:8px 10px;background:var(--bg);border-radius:6px;border:1px solid var(--border);font-size:.75rem}
+.factor-item .fi-icon{width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.65rem;flex-shrink:0}
+.factor-item .fi-icon.on{background:rgba(0,255,136,.15);color:var(--green);border:1px solid rgba(0,255,136,.3)}
+.factor-item .fi-icon.off{background:rgba(100,116,139,.1);color:var(--text3);border:1px solid rgba(100,116,139,.2)}
+.factor-item .fi-label{color:var(--text2)}
+.factor-item .fi-pts{margin-left:auto;font-family:'Consolas',monospace;font-weight:600;font-size:.7rem}
+
+/* ── Sessions ───────────────────────────────────────────────── */
+.session-item{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--bg);border-radius:8px;border:1px solid var(--border)}
+.session-item.active{border-color:var(--green);background:rgba(0,255,136,.05)}
+.session-name{font-size:.8rem;font-weight:600;color:var(--text2)}
+.session-time{font-size:.7rem;color:var(--text3);font-family:'Consolas',monospace}
+.session-dot{width:10px;height:10px;border-radius:50%}
+.session-dot.on{background:var(--green);box-shadow:0 0 8px var(--green)}
+.session-dot.off{background:var(--text3);opacity:.4}
+
+/* ── Sentiment ──────────────────────────────────────────────── */
+.sentiment-bar{display:flex;height:24px;border-radius:6px;overflow:hidden;margin-bottom:8px}
+.sentiment-bar div{display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;transition:width .5s}
+.sentiment-bar .bull{background:var(--green2);color:#000}
+.sentiment-bar .bear{background:var(--red2);color:#fff}
+.sentiment-bar .neut{background:var(--text3);color:#fff}
+.sentiment-legend{display:flex;gap:16px;font-size:.7rem;color:var(--text3)}
+.sentiment-legend span{display:flex;align-items:center;gap:4px}
+.sentiment-legend .dot-bull{width:8px;height:8px;border-radius:50%;background:var(--green2)}
+.sentiment-legend .dot-bear{width:8px;height:8px;border-radius:50%;background:var(--red2)}
+.sentiment-legend .dot-neut{width:8px;height:8px;border-radius:50%;background:var(--text3)}
+
+/* ── Volatility ─────────────────────────────────────────────── */
+.vol-indicator{display:flex;gap:6px}
+.vol-level{flex:1;text-align:center;padding:8px 4px;border-radius:6px;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;background:var(--bg);border:1px solid var(--border);color:var(--text3)}
+.vol-level.active-low{background:rgba(0,212,255,.15);color:var(--cyan);border-color:var(--cyan)}
+.vol-level.active-normal{background:rgba(0,255,136,.15);color:var(--green);border-color:var(--green)}
+.vol-level.active-high{background:rgba(255,170,0,.15);color:var(--yellow);border-color:var(--yellow)}
+.vol-level.active-extreme{background:rgba(255,68,68,.15);color:var(--red);border-color:var(--red)}
+
+/* ── News ───────────────────────────────────────────────────── */
+.news-item{display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--bg);border-radius:8px;border:1px solid var(--border);margin-bottom:6px}
+.news-item.high{border-color:rgba(255,102,0,.4);background:rgba(255,102,0,.05)}
+.news-time{font-family:'Consolas',monospace;font-size:.75rem;color:var(--text3);min-width:50px}
+.news-impact{padding:2px 8px;border-radius:4px;font-size:.65rem;font-weight:700;text-transform:uppercase}
+.news-impact.high{background:rgba(255,102,0,.2);color:var(--orange)}
+.news-impact.medium{background:rgba(255,170,0,.15);color:var(--yellow)}
+.news-impact.low{background:rgba(100,116,139,.15);color:var(--text3)}
+.news-currency{font-size:.75rem;font-weight:600;color:var(--cyan);min-width:50px}
+.news-name{font-size:.8rem;color:var(--text);flex:1}
+.news-countdown{font-family:'Consolas',monospace;font-size:.75rem;color:var(--yellow);min-width:60px;text-align:right}
+.no-news{text-align:center;padding:20px;color:var(--text3);font-size:.8rem}
+
+/* ── Trade History Table ────────────────────────────────────── */
+.table-wrap{overflow-x:auto;background:var(--bg2);border:1px solid var(--border);border-radius:10px}
+table{width:100%;border-collapse:collapse;font-size:.8rem}
+th{text-align:left;padding:10px 12px;color:var(--text3);font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap;font-size:.7rem;text-transform:uppercase;letter-spacing:1px}
+td{padding:8px 12px;border-bottom:1px solid rgba(42,53,80,.5);font-family:'Consolas',monospace}
+tr:last-child td{border-bottom:none}
+tr:hover{background:rgba(0,255,136,.02)}
+.tag{display:inline-block;padding:2px 10px;border-radius:4px;font-size:.7rem;font-weight:700;text-transform:uppercase}
+.tag.buy{background:rgba(0,255,136,.15);color:var(--green);border:1px solid rgba(0,255,136,.3)}
+.tag.sell{background:rgba(255,68,68,.15);color:var(--red);border:1px solid rgba(255,68,68,.3)}
+.tag.sltp{background:rgba(255,170,0,.15);color:var(--yellow);border:1px solid rgba(255,170,0,.3)}
+.tag.confirmed{background:rgba(0,255,136,.1);color:var(--green2)}
+.tag.pending{background:rgba(255,170,0,.1);color:var(--yellow)}
+
+/* ── Log ────────────────────────────────────────────────────── */
+.log-box{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;font-family:'Consolas',monospace;font-size:.72rem;max-height:250px;overflow-y:auto;line-height:1.7}
+.log-entry{color:var(--text3)}
+.log-entry .time{color:var(--text3);opacity:.5;margin-right:8px}
+.log-entry.signal{color:var(--green)}
+.log-entry.error{color:var(--red)}
+.log-entry.trade{color:var(--cyan)}
+.log-entry.news{color:var(--orange)}
+
+/* ── Risk Meter ─────────────────────────────────────────────── */
+.risk-meter{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--bg);border-radius:8px;border:1px solid var(--border)}
+.risk-bar{flex:1;height:6px;background:var(--bg3);border-radius:3px;overflow:hidden}
+.risk-fill{height:100%;border-radius:3px;transition:width .5s}
+.risk-label{font-size:.75rem;font-weight:700;min-width:60px;text-align:right}
+
+/* ── Trade Explanation ──────────────────────────────────────── */
+.explanation{padding:14px;background:var(--bg);border-radius:8px;border:1px solid var(--border);border-left:3px solid var(--green)}
+.explanation.sell-border{border-left-color:var(--red)}
+.explanation.wait-border{border-left-color:var(--yellow)}
+.explanation .exp-title{font-size:.75rem;text-transform:uppercase;color:var(--text3);letter-spacing:1px;margin-bottom:6px}
+.explanation .exp-text{font-size:.85rem;color:var(--text);line-height:1.5}
+
+/* ── Empty State ────────────────────────────────────────────── */
+.empty-state{text-align:center;padding:30px;color:var(--text3);font-size:.85rem}
+.empty-state .empty-icon{font-size:2rem;margin-bottom:8px;opacity:.5}
+
+/* ── Responsive ─────────────────────────────────────────────── */
+@media(max-width:1024px){.grid-2,.grid-3{grid-template-columns:1fr}.grid-4{grid-template-columns:repeat(2,1fr)}.radar-details{grid-template-columns:repeat(3,1fr)}.factor-grid{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:600px){.container{padding:8px}.grid-4{grid-template-columns:1fr 1fr}.radar-details{grid-template-columns:repeat(2,1fr)}.factor-grid{grid-template-columns:1fr 1fr}.header{flex-direction:column;gap:10px;text-align:center}}
+
+/* ── Animations ─────────────────────────────────────────────── */
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.fade-in{animation:fadeIn .3s ease}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.4}}
+.blink{animation:blink 1.5s infinite}
+</style>
+</head>
+<body>
+<div class="container">
+
+<!-- ═══ HEADER ═══════════════════════════════════════════════ -->
+<div class="header">
+  <div class="header-left">
+    <div class="radar-icon">📡</div>
+    <h1>AI TRADING RADAR<small>Professional Multi-Factor Analysis Engine</small></h1>
+  </div>
+  <div class="header-right">
+    <div style="text-align:right;margin-right:12px">
+      <div class="label" style="font-size:.65rem;margin-bottom:1px">TOTAL EQUITY</div>
+      <div class="value green" id="headerEquity" style="font-size:1.1rem">$0.00</div>
+    </div>
+    <div style="text-align:right;margin-right:12px">
+      <div class="label" style="font-size:.65rem;margin-bottom:1px">BALANCE</div>
+      <div class="value cyan" id="headerBalance" style="font-size:1.1rem">$0.00</div>
+    </div>
+    <div style="text-align:right;margin-right:12px">
+      <div class="label" style="font-size:.65rem;margin-bottom:1px">% P/L</div>
+      <div class="value green" id="headerPL" style="font-size:1.1rem">+0.00%</div>
+    </div>
+    <div style="text-align:right;margin-right:12px">
+      <div class="label" style="font-size:.65rem;margin-bottom:1px">DRAWDOWN</div>
+      <div class="value green" id="headerDD" style="font-size:1.1rem">0.00%</div>
+    </div>
+    <span id="modeBadge" style="padding:4px 10px;border-radius:20px;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;background:rgba(255,68,68,.15);color:var(--red);border:1px solid rgba(255,68,68,.3);display:none">⚡AGGRESSIVE</span>
+    <span class="status-badge" id="statusBadge">STOPPED</span>
+    <span class="clock" id="clock">--:--:--</span>
+  </div>
+</div>
+
+<!-- ═══ XAUUSD REAL-TIME CHART ═══════════════════════════════ -->
+<div class="section-title" style="margin-top:16px"><span class="dot"></span> XAUUSD REAL-TIME CHART</div>
+<div class="card" style="margin-bottom:16px;padding:8px;background:var(--bg);border:1px solid var(--border)">
+  <div id="tvchart" style="width:100%;height:480px;border-radius:8px;overflow:hidden"></div>
+  <div style="display:flex;gap:16px;margin-top:8px;padding:0 8px;font-size:.75rem;color:var(--text3);align-items:center">
+    <span style="display:flex;align-items:center;gap:4px">⏱ <span id="chartStatus">Loading chart...</span></span>
+    <span style="display:flex;align-items:center;gap:4px">📊 M1 Scalping — Aggressive Mode</span>      <span style="margin-left:auto;display:flex;align-items:center;gap:6px">
+      <span class="chart-marker" style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;background:rgba(0,255,136,.1);border-radius:4px;border:1px solid rgba(0,255,136,.2)">
+        <span style="color:var(--green)">▲</span> BUY
+      </span>
+      <span class="chart-marker" style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;background:rgba(255,68,68,.1);border-radius:4px;border:1px solid rgba(255,68,68,.2)">
+        <span style="color:var(--red)">▼</span> SELL
+      </span>
+      <span id="chartTimeout" style="display:none;padding:2px 8px;background:rgba(255,170,0,.1);border-radius:4px;border:1px solid rgba(255,170,0,.2);color:var(--yellow);font-size:.7rem">⏱ 0:00</span>
+    </span>
+  </div>
+</div>
+
+<!-- ═══ LIVE TRADING RADAR ══════════════════════════════════ -->
+<div class="section-title"><span class="dot"></span> LIVE TRADING RADAR</div>
+<div id="radarCards">
+  <div class="radar-card neutral" id="mainRadar">
+    <div class="radar-pair-header">
+      <span class="radar-pair-name" id="rPair">XAUUSD</span>
+      <span class="radar-signal-badge wait" id="rSignal">WAIT</span>
+    </div>
+    <div style="display:flex;align-items:flex-end;gap:24px;margin-bottom:14px">
+      <div>
+        <div class="label" style="margin-bottom:2px">PRICE</div>
+        <div class="radar-price" id="rPrice">$0.00</div>
+      </div>
+      <div>
+        <div class="label" style="margin-bottom:2px">CONFIDENCE</div>
+        <div class="value" id="rConf" style="font-size:1.4rem">0%</div>
+      </div>
+      <div>
+        <div class="label" style="margin-bottom:2px">STATUS</div>
+        <div id="rStatus" style="font-size:.85rem;color:var(--text2)">Waiting</div>
+      </div>
+    </div>
+    <div class="radar-details">
+      <div class="radar-detail"><div class="rd-label">ENTRY</div><div class="rd-value" id="rEntry">--</div></div>
+      <div class="radar-detail"><div class="rd-label">STOP LOSS</div><div class="rd-value red" id="rSL">--</div></div>
+      <div class="radar-detail"><div class="rd-label">TAKE PROFIT</div><div class="rd-value green" id="rTP">--</div></div>
+      <div class="radar-detail"><div class="rd-label">RISK:REWARD</div><div class="rd-value cyan" id="rRR">--</div></div>
+      <div class="radar-detail"><div class="rd-label">SESSION</div><div class="rd-value yellow" id="rSession">--</div></div>
+    </div>
+    <div class="conf-bar-wrap">
+      <div class="conf-bar-outer"><div class="conf-bar-inner" id="confBar" style="width:0%"></div></div>
+      <div class="conf-bar-text">
+        <span>0%</span>
+        <span class="conf-cat" id="confCat">NO TRADE</span>
+        <span>100%</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ CONFIDENCE FACTORS + SESSIONS + SENTIMENT ═══════════ -->
+<div class="grid-3" style="margin-top:16px">
+
+  <!-- Confidence Factors -->
+  <div class="card" style="grid-column:span 2">
+    <div class="label" style="margin-bottom:10px">CONFIDENCE SCORE BREAKDOWN</div>
+    <div class="factor-grid" id="factorGrid">
+      <div class="factor-item"><div class="fi-icon off" data-f="trend">○</div><span class="fi-label">Trend</span><span class="fi-pts" data-fp="trend">+0</span></div>
+      <div class="factor-item"><div class="fi-icon off" data-f="ema">○</div><span class="fi-label">EMA</span><span class="fi-pts" data-fp="ema">+0</span></div>
+      <div class="factor-item"><div class="fi-icon off" data-f="bos">○</div><span class="fi-label">BOS</span><span class="fi-pts" data-fp="bos">+0</span></div>
+      <div class="factor-item"><div class="fi-icon off" data-f="order_block">○</div><span class="fi-label">Order Block</span><span class="fi-pts" data-fp="order_block">+0</span></div>
+      <div class="factor-item"><div class="fi-icon off" data-f="liquidity_sweep">○</div><span class="fi-label">Liquidity Sweep</span><span class="fi-pts" data-fp="liquidity_sweep">+0</span></div>
+      <div class="factor-item"><div class="fi-icon off" data-f="volume">○</div><span class="fi-label">Volume</span><span class="fi-pts" data-fp="volume">+0</span></div>
+      <div class="factor-item"><div class="fi-icon off" data-f="rsi">○</div><span class="fi-label">RSI</span><span class="fi-pts" data-fp="rsi">+0</span></div>
+      <div class="factor-item"><div class="fi-icon off" data-f="macd">○</div><span class="fi-label">MACD</span><span class="fi-pts" data-fp="macd">+0</span></div>
+      <div class="factor-item"><div class="fi-icon off" data-f="fvg">○</div><span class="fi-label">FVG</span><span class="fi-pts" data-fp="fvg">+0</span></div>
+      <div class="factor-item"><div class="fi-icon off" data-f="news_clear">○</div><span class="fi-label">No News</span><span class="fi-pts" data-fp="news_clear">+0</span></div>
+    </div>
+  </div>
+
+  <!-- Session Status -->
+  <div class="card">
+    <div class="label" style="margin-bottom:10px">SESSION STATUS</div>
+    <div style="display:flex;flex-direction:column;gap:6px" id="sessionList">
+      <div class="session-item" data-s="sydney"><span class="session-name">🇦🇺 Sydney</span><span class="session-time">04:00-13:00</span><span class="session-dot off"></span></div>
+      <div class="session-item" data-s="tokyo"><span class="session-name">🇯🇵 Tokyo</span><span class="session-time">06:00-15:00</span><span class="session-dot off"></span></div>
+      <div class="session-item" data-s="london"><span class="session-name">🇬🇧 London</span><span class="session-time">13:00-22:00</span><span class="session-dot off"></span></div>
+      <div class="session-item" data-s="new_york"><span class="session-name">🇺🇸 New York</span><span class="session-time">19:30-04:30</span><span class="session-dot off"></span></div>
+    </div>
+    <div style="margin-top:10px;padding:8px 12px;background:var(--bg);border-radius:6px;text-align:center">
+      <div class="label">ACTIVE SESSION</div>
+      <div class="value yellow" id="activeSession" style="font-size:.9rem">—</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ SENTIMENT + VOLATILITY + RISK ═══════════════════════ -->
+<div class="grid-3">
+  <!-- Market Sentiment -->
+  <div class="card">
+    <div class="label" style="margin-bottom:10px">MARKET SENTIMENT</div>
+    <div class="sentiment-bar">
+      <div class="bull" id="sentiBull" style="width:0%">0%</div>
+      <div class="bear" id="sentiBear" style="width:0%">0%</div>
+      <div class="neut" id="sentiNeut" style="width:100%">100%</div>
+    </div>
+    <div class="sentiment-legend">
+      <span><span class="dot-bull"></span> Bullish <strong id="sentiBullTxt">0%</strong></span>
+      <span><span class="dot-bear"></span> Bearish <strong id="sentiBearTxt">0%</strong></span>
+      <span><span class="dot-neut"></span> Neutral <strong id="sentiNeutTxt">100%</strong></span>
+    </div>
+  </div>
+
+  <!-- Volatility Index -->
+  <div class="card">
+    <div class="label" style="margin-bottom:10px">VOLATILITY INDEX</div>
+    <div class="vol-indicator" id="volIndicator">
+      <div class="vol-level" data-v="LOW">LOW</div>
+      <div class="vol-level active-normal" data-v="NORMAL">NORMAL</div>
+      <div class="vol-level" data-v="HIGH">HIGH</div>
+      <div class="vol-level" data-v="EXTREME">EXTREME</div>
+    </div>
+  </div>
+
+  <!-- Risk Meter -->
+  <div class="card">
+    <div class="label" style="margin-bottom:10px">AI RISK METER</div>
+    <div class="risk-meter">
+      <span style="font-size:.7rem;color:var(--text3)">LOW</span>
+      <div class="risk-bar"><div class="risk-fill" id="riskFill" style="width:30%;background:var(--green)"></div></div>
+      <span style="font-size:.7rem;color:var(--text3)">HIGH</span>
+    </div>
+    <div style="text-align:center;margin-top:8px">
+      <span class="risk-label" id="riskLabel" style="color:var(--green)">LOW</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TRADE EXPLANATION ═══════════════════════════════════ -->
+<div class="card" style="margin-bottom:16px">
+  <div class="explanation" id="expBox">
+    <div class="exp-title">🤖 AI TRADE EXPLANATION</div>
+    <div class="exp-text" id="expText">Waiting for market analysis...</div>
+  </div>
+</div>
+
+<!-- ═══ NEWS CATALYST ═══════════════════════════════════════ -->
+<div class="section-title"><span class="dot"></span> NEWS CATALYST</div>
+<div class="card" style="margin-bottom:16px">
+  <div id="newsList">
+    <div class="no-news">📭 No upcoming high-impact news</div>
+  </div>
+</div>
+
+<!-- ═══ CONFIRMED SIGNALS ═══════════════════════════════════ -->
+<div class="section-title"><span class="dot"></span> OPEN POSITIONS</div>
+<div class="table-wrap" style="margin-bottom:16px">
+  <table>
+    <thead><tr>
+      <th>Ticket</th><th>Pair</th><th>Side</th><th>Qty</th><th>Entry</th><th>Current</th><th>Pips</th><th>P&L</th>
+    </tr></thead>
+    <tbody id="positionsBody">
+      <tr><td colspan="8" class="empty-state">No open positions</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="section-title"><span class="dot"></span> CONFIRMED SIGNALS</div>
+<div class="table-wrap" style="margin-bottom:16px">
+  <table>
+    <thead><tr>
+      <th>Date</th><th>Time</th><th>Pair</th><th>Signal</th><th>Confidence</th><th>Price</th><th>P&L</th><th>Status</th>
+    </tr></thead>
+    <tbody id="tradesBody">
+      <tr><td colspan="8" class="empty-state"><div class="empty-icon">📊</div>No signals yet</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ═══ LIVE LOG ════════════════════════════════════════════ -->
+<div class="section-title"><span class="dot"></span> LIVE LOG</div>
+<div class="log-box" id="logBox">
+  <div class="log-entry" style="color:var(--text3)">Initializing AI Trading Radar...</div>
+</div>
+
+</div><!-- /container -->
+
+<script src="https://s3.tradingview.com/tv.js"></script>
+<script>
+// ── TradingView XAUUSD Widget ────────────────────────────
+function initTradingView() {
+  if (typeof TradingView === 'undefined') {
+    document.getElementById('chartStatus').textContent = 'Chart widget unavailable — check connection';
+    return;
+  }
+  new TradingView.widget({
+    container_id: 'tvchart',
+    symbol: 'OANDA:XAUUSD',
+    interval: '1',
+    timezone: 'Asia/Jakarta',
+    theme: 'dark',
+    style: '1',
+    locale: 'en',
+    toolbar_bg: '#0a0e17',
+    enable_publishing: false,
+    hide_side_toolbar: false,
+    allow_symbol_change: true,
+    hideideas: true,
+    show_popup_button: false,
+    popup_width: 1000,
+    popup_height: 650,
+    studies: [
+      'RSI@tv-basicstudies',
+      'MASimple@tv-basicstudies',
+      'MASimple@tv-basicstudies'
+    ],
+    overrides: {
+      'mainSeriesProperties.style': 1,
+      'paneProperties.background': '#0a0e17',
+      'paneProperties.vertGridProperties.color': '#1a2035',
+      'paneProperties.horzGridProperties.color': '#1a2035',
+      'symbolWatermarkProperties.transparency': 90,
+    },
+    loading_screen: { backgroundColor: '#0a0e17' },
+  });
+  document.getElementById('chartStatus').textContent = 'Live — M1 Real-Time';
+}
+
+// ── DOM refs ─────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const logBox = $('logBox');
+let logCount = 0;
+
+// ── Clock ────────────────────────────────────────────────────
+setInterval(() => {
+  $('clock').textContent = new Date().toLocaleTimeString('en-GB');
+}, 1000);
+
+// ── Confidence category helper ───────────────────────────────
+function confCategory(pct) {
+  if (pct >= 95) return ['STRONG CONFIRMED', 'var(--green)'];
+  if (pct >= 85) return ['HIGH PROBABILITY', 'var(--green)'];
+  if (pct >= 70) return ['GOOD SETUP', 'var(--yellow)'];
+  if (pct >= 50) return ['WATCHLIST', 'var(--orange)'];
+  return ['NO TRADE', 'var(--text3)'];
+}
+
+// ── Signal badge helper ──────────────────────────────────────
+function signalBadge(action) {
+  const a = (action || '').toUpperCase();
+  if (a.includes('BUY')) return ['BUY', 'buy'];
+  if (a.includes('SELL')) return ['SELL', 'sell'];
+  if (a.includes('WAIT') || a.includes('NEWS')) return ['WAIT', 'wait'];
+  return ['NO TRADE', 'no-trade'];
+}
+
+// ── Risk meter ───────────────────────────────────────────────
+function updateRisk(analysis, vol) {
+  let score = 0;
+  if (vol === 'HIGH') score += 30;
+  else if (vol === 'EXTREME') score += 50;
+  // Count active factors (more factors = more confidence = less risk)
+  const vals = Object.values(analysis);
+  const onCount = vals.filter(v => v === true).length;
+  score += Math.max(0, 40 - onCount * 4);
+  score = Math.min(100, Math.max(0, score));
+  const fill = $('riskFill');
+  const label = $('riskLabel');
+  fill.style.width = score + '%';
+  if (score < 30) { fill.style.background = 'var(--green)'; label.textContent = 'LOW'; label.style.color = 'var(--green)'; }
+  else if (score < 60) { fill.style.background = 'var(--yellow)'; label.textContent = 'MEDIUM'; label.style.color = 'var(--yellow)'; }
+  else { fill.style.background = 'var(--red)'; label.textContent = 'HIGH'; label.style.color = 'var(--red)'; }
+}
+
+// ── Analysis explanation builder ─────────────────────────────
+function buildExplanation(analysis, action, conf) {
+  const reasons = [];
+  const a = analysis || {};
+  if (a.trend) reasons.push('✔ Trend Alignment');
+  if (a.ema) reasons.push('✔ EMA Confirmation');
+  if (a.bos) reasons.push('✔ Break of Structure (BOS)');
+  if (a.order_block) reasons.push('✔ Order Block');
+  if (a.liquidity_sweep) reasons.push('✔ Liquidity Sweep');
+  if (a.volume) reasons.push('✔ Volume Spike');
+  if (a.rsi) reasons.push('✔ RSI Signal');
+  if (a.macd) reasons.push('✔ MACD Crossover');
+  if (a.fvg) reasons.push('✔ Fair Value Gap (FVG)');
+  if (a.news_clear) reasons.push('✔ No High Impact News');
+  if (reasons.length === 0) reasons.push('No confirming factors detected');
+  const act = (action || '').toUpperCase();
+  const emoji = act.includes('BUY') ? '🟢' : act.includes('SELL') ? '🔴' : '⏸️';
+  return `${emoji} ${act} — Confidence: ${conf}%<br>${reasons.join(' &nbsp;│&nbsp; ')}`;
+}
+
+// ── Main update function ─────────────────────────────────────
+function updateUI(data) {
+  if (!data) return;
+
+  // Equity & Balance header
+  if (data.equity != null) {
+    $('headerEquity').textContent = '$' + Number(data.equity).toFixed(2);
+    $('headerEquity').style.color = data.equity >= (data.initial_equity || data.equity) ? 'var(--green)' : 'var(--red)';
+  }
+  if (data.balance != null) {
+    $('headerBalance').textContent = '$' + Number(data.balance).toFixed(2);
+  }
+
+  // % P/L (relative to initial_equity)
+  if (data.pl_pct != null) {
+    const pl = Number(data.pl_pct);
+    const plEl = $('headerPL');
+    const plSign = pl >= 0 ? '+' : '';
+    plEl.textContent = plSign + pl.toFixed(2) + '%';
+    plEl.style.color = pl >= 0 ? 'var(--green)' : 'var(--red)';
+  }
+
+  // Drawdown (relative to peak equity)
+  if (data.drawdown_pct != null) {
+    const dd = Number(data.drawdown_pct);
+    const ddEl = $('headerDD');
+    ddEl.textContent = dd.toFixed(2) + '%';
+    ddEl.style.color = dd > 0 ? 'var(--red)' : 'var(--green)';
+  }
+
+  // Aggressive mode badge
+  const modeBadge = $('modeBadge');
+  if (data.aggressive_mode === true) {
+    modeBadge.style.display = 'inline-block';
+  } else {
+    modeBadge.style.display = 'none';
+  }
+
+  // Timeout countdown
+  const timeoutEl = $('chartTimeout');
+  if (data.entry_time && data.timeout_minutes > 0) {
+    timeoutEl.style.display = 'inline-flex';
+    const elapsed = (Date.now() - new Date(data.entry_time).getTime()) / 60000;
+    const remaining = Math.max(0, data.timeout_minutes - elapsed);
+    const mins = Math.floor(remaining);
+    const secs = Math.floor((remaining - mins) * 60);
+    timeoutEl.textContent = `⏱ ${mins}:${secs.toString().padStart(2, '0')}`;
+    timeoutEl.style.color = remaining < 2 ? 'var(--red)' : 'var(--yellow)';
+  } else {
+    timeoutEl.style.display = 'none';
+  }
+
+  // Status badge
+  const s = data.status || 'stopped';
+  const badge = $('statusBadge');
+  badge.textContent = s.toUpperCase();
+  badge.className = 'status-badge ' + s;
+
+  // Radar card
+  const pair = data.symbol || 'XAUUSD';
+  $('rPair').textContent = pair;
+  $('rPrice').textContent = data.last_price ? '$' + Number(data.last_price).toFixed(2) : '$0.00';
+
+  // Signal
+  const sigAction = data.signal_action || 'HOLD';
+  const [sigText, sigClass] = signalBadge(sigAction);
+  const rSig = $('rSignal');
+  rSig.textContent = sigText;
+  rSig.className = 'radar-signal-badge ' + sigClass;
+
+  // Radar card border color
+  const mainCard = $('mainRadar');
+  mainCard.className = 'radar-card ' + (sigClass === 'buy' ? 'buy' : sigClass === 'sell' ? 'sell' : sigClass === 'wait' ? 'wait' : 'neutral');
+
+  // Confidence
+  const confPct = data.confidence_pct || 0;
+  $('rConf').textContent = confPct + '%';
+  $('rConf').style.color = confPct >= 70 ? 'var(--green)' : confPct >= 50 ? 'var(--yellow)' : 'var(--text3)';
+  $('confBar').style.width = confPct + '%';
+  const [catText, catColor] = confCategory(confPct);
+  $('confCat').textContent = catText;
+  $('confCat').style.color = catColor;
+
+  // Entry/SL/TP/RR
+  const fmt = v => v && v > 0 ? Number(v).toFixed(2) : '--';
+  $('rEntry').textContent = fmt(data.entry);
+  $('rSL').textContent = fmt(data.sl);
+  $('rTP').textContent = fmt(data.tp);
+  $('rRR').textContent = data.rr && data.rr > 0 ? '1:' + Number(data.rr).toFixed(1) : '--';
+  $('rSession').textContent = data.current_session || '--';
+  $('rStatus').textContent = data.signal_status || 'Waiting';
+
+  // Analysis factors
+  const analysis = data.analysis || {};
+  const factorMap = {
+    trend: 10, ema: 10, bos: 10, order_block: 10,
+    liquidity_sweep: 10, volume: 10, rsi: 5, macd: 5, fvg: 10, news_clear: 10
+  };
+  for (const [key, pts] of Object.entries(factorMap)) {
+    const icon = document.querySelector(`[data-f="${key}"]`);
+    const ptsEl = document.querySelector(`[data-fp="${key}"]`);
+    if (icon && ptsEl) {
+      const on = analysis[key] === true;
+      icon.textContent = on ? '✓' : '○';
+      icon.className = 'fi-icon ' + (on ? 'on' : 'off');
+      ptsEl.textContent = on ? '+' + pts : '+0';
+      ptsEl.style.color = on ? 'var(--green)' : 'var(--text3)';
+    }
+  }
+
+  // Sessions
+  const sessions = data.sessions || {};
+  document.querySelectorAll('[data-s]').forEach(el => {
+    const key = el.dataset.s;
+    const active = sessions[key] === true;
+    el.className = 'session-item' + (active ? ' active' : '');
+    const dot = el.querySelector('.session-dot');
+    dot.className = 'session-dot ' + (active ? 'on' : 'off');
+  });
+  $('activeSession').textContent = data.current_session || '—';
+
+  // Sentiment
+  const senti = data.sentiment || {bullish:0,bearish:0,neutral:100};
+  const b = senti.bullish || 0, be = senti.bearish || 0, n = senti.neutral || 100;
+  $('sentiBull').style.width = b + '%'; $('sentiBull').textContent = b > 5 ? b + '%' : '';
+  $('sentiBear').style.width = be + '%'; $('sentiBear').textContent = be > 5 ? be + '%' : '';
+  $('sentiNeut').style.width = n + '%'; $('sentiNeut').textContent = n > 5 ? n + '%' : '';
+  $('sentiBullTxt').textContent = b + '%';
+  $('sentiBearTxt').textContent = be + '%';
+  $('sentiNeutTxt').textContent = n + '%';
+
+  // Volatility
+  const vol = data.volatility || 'NORMAL';
+  document.querySelectorAll('[data-v]').forEach(el => {
+    el.className = 'vol-level' + (el.dataset.v === vol ? ' active-' + vol.toLowerCase() : '');
+  });
+
+  // Risk meter
+  updateRisk(analysis, vol);
+
+  // Explanation
+  $('expBox').className = 'explanation' + (sigClass === 'sell' ? ' sell-border' : sigClass === 'wait' ? ' wait-border' : '');
+  $('expText').innerHTML = buildExplanation(analysis, sigAction, confPct);
+
+  // News
+  const news = data.news_events || [];
+  const newsList = $('newsList');
+  if (news.length === 0) {
+    newsList.innerHTML = '<div class="no-news">📭 No upcoming high-impact news</div>';
+  } else {
+    newsList.innerHTML = news.slice(0, 8).map(n => {
+      const impClass = (n.impact || '').toLowerCase().includes('high') ? 'high' : (n.impact || '').toLowerCase().includes('medium') ? 'medium' : 'low';
+      const timeStr = n.time || '--:--';
+      const countdown = n.countdown || '';
+      return `<div class="news-item ${impClass}">
+        <span class="news-time">${timeStr}</span>
+        <span class="news-impact ${impClass}">${n.impact || 'LOW'}</span>
+        <span class="news-currency">${n.currency || '--'}</span>
+        <span class="news-name">${n.name || '--'}</span>
+        <span class="news-countdown">${countdown}</span>
+      </div>`;
+    }).join('');
+  }
+
+  // Open positions
+  const openPositions = data.open_positions || [];
+  const posBody = $('positionsBody');
+  if (openPositions.length > 0) {
+    posBody.innerHTML = openPositions.map(p => {
+      const side = (p.side || 'BUY').toUpperCase();
+      const cls = side === 'SELL' ? 'sell' : 'buy';
+      const pnl = Number(p.pnl || 0);
+      const pips = Number(p.pnl_pips || 0);
+      return `<tr>
+        <td style="color:var(--text3)">${p.ticket || '--'}</td>
+        <td style="color:var(--cyan)">${p.symbol || '--'}</td>
+        <td><span class="tag ${cls}">${side}</span></td>
+        <td>${p.qty != null ? Number(p.qty).toFixed(2) : '--'}</td>
+        <td>$${p.entry != null ? Number(p.entry).toFixed(2) : '--'}</td>
+        <td>$${p.current != null ? Number(p.current).toFixed(2) : '--'}</td>
+        <td style="color:${pips >= 0 ? 'var(--green)' : 'var(--red)'}">${pips >= 0 ? '+' : ''}${pips.toFixed(1)}</td>
+        <td style="color:${pnl >= 0 ? 'var(--green)' : 'var(--red)'}">${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}</td>
+      </tr>`;
+    }).join('');
+  } else {
+    posBody.innerHTML = '<tr><td colspan="8" class="empty-state">No open positions</td></tr>';
+  }
+
+  // Trades
+  const trades = data.trades || [];
+  const tbody = $('tradesBody');
+  if (trades.length > 0) {
+    tbody.innerHTML = trades.slice().reverse().slice(0, 20).map(t => {
+      const act = t.action || '';
+      const cls = act.includes('BUY') ? 'buy' : act.includes('SELL') || act.includes('CLOSED') ? 'sell' : 'sltp';
+      const pnlStr = t.pnl != null
+        ? `<span style="color:${t.pnl >= 0 ? 'var(--green)' : 'var(--red)'}">${t.pnl >= 0 ? '+' : ''}$${t.pnl.toFixed(2)}</span>`
+        : '<span style="color:var(--text3)">--</span>';
+      const statusTag = act.includes('BUY') ? '<span class="tag confirmed">OPEN</span>' : '<span class="tag sell">CLOSED</span>';
+      return `<tr>
+        <td style="color:var(--text3)">${(t.time || '').slice(0,10) || '--'}</td>
+        <td>${t.time || '--'}</td>
+        <td style="color:var(--cyan)">${t.symbol || '--'}</td>
+        <td><span class="tag ${cls}">${act}</span></td>
+        <td style="color:var(--text3)">${t.qty || '--'}</td>
+        <td>$${t.price ? t.price.toFixed(2) : '--'}</td>
+        <td>${pnlStr}</td>
+        <td>${statusTag}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  // Logs
+  const logs = data.logs || [];
+  if (logs.length > logCount) {
+    for (let i = logCount; i < logs.length; i++) {
+      const entry = logs[i];
+      const msg = entry.msg || '';
+      let cls = '';
+      if (msg.includes('BOUGHT') || msg.includes('SOLD') || msg.includes('CLOSED')) cls = ' trade';
+      else if (msg.includes('ERROR') || msg.includes('error')) cls = ' error';
+      else if (msg.includes('signal') || msg.includes('Signal')) cls = ' signal';
+      else if (msg.includes('NEWS') || msg.includes('news')) cls = ' news';
+      const div = document.createElement('div');
+      div.className = 'log-entry' + cls;
+      const time = entry.time ? entry.time.slice(11, 19) : '';
+      div.innerHTML = `<span class="time">${time}</span>${msg}`;
+      logBox.appendChild(div);
+    }
+    logCount = logs.length;
+    logBox.scrollTop = logBox.scrollHeight;
+  }
+}
+
+// ── SSE real-time updates ────────────────────────────────────
+function connectSSE() {
+  const evtSource = new EventSource('/api/events');
+  evtSource.addEventListener('init', e => {
+    try { const d = JSON.parse(e.data); updateUI(d); if (d.logs) logCount = d.logs.length; } catch(ex){}
+  });
+  evtSource.addEventListener('update', e => {
+    try { updateUI(JSON.parse(e.data)); } catch(ex){}
+  });
+  evtSource.onerror = () => { evtSource.close(); setTimeout(connectSSE, 2000); };
+}
+connectSSE();
+
+// ── Polling fallback ─────────────────────────────────────────
+setInterval(() => {
+  fetch('/api/status').then(r => r.json()).then(updateUI).catch(() => {});
+}, 3000);
+
+// ── Initial load ─────────────────────────────────────────────
+fetch('/api/status').then(r => r.json()).then(d => { updateUI(d); if (d.logs) logCount = d.logs.length; }).catch(() => {});
+// Init TradingView chart after page loads
+setTimeout(initTradingView, 500);
+</script>
+</body>
+</html>

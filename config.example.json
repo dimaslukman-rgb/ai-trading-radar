@@ -1,0 +1,67 @@
+{
+  "symbol": "BTC-USD",
+  "market": "crypto",
+  "strategy": {
+    "fast_window": 8,
+    "slow_window": 21,
+    "rsi_window": 14,
+    "min_buy_score": 0.35,
+    "min_sell_score": -0.25
+  },
+  "scalping": {
+    "ema_fast": 9,
+    "ema_slow": 21,
+    "macd_fast": 12,
+    "macd_slow": 26,
+    "macd_signal": 9,
+    "bb_window": 20,
+    "bb_std": 2.0,
+    "stochastic_k": 14,
+    "stochastic_d": 3,
+    "stochastic_slowing": 3,
+    "stochastic_oversold": 20,
+    "stochastic_overbought": 80,
+    "volume_threshold": 1.5,
+    "min_buy_score": 0.15,
+    "min_sell_score": -0.10,
+    "max_spread_points": 25.0,
+    "stop_loss_pips": 30.0,
+    "take_profit_pips": 15.0,
+    "trailing_stop_pips": 5.0,
+    "risk_per_trade_pct": 0.02,
+    "max_trade_pct": 0.05
+  },
+  "risk": {
+    "initial_cash": 10000,
+    "max_position_pct": 0.25,
+    "max_trade_pct": 0.10,
+    "stop_loss_pct": 0.05,
+    "take_profit_pct": 0.10,
+    "min_cash": 50
+  },
+  "brokers": {
+    "default": {
+      "backend": "paper",
+      "initial_cash": 10000
+    },
+    "mt5": {
+      "backend": "mt5",
+      "server": "FinexAsia-Demo",
+      "login": null,
+      "password": "",
+      "symbol_map": null
+    },
+    "binance": {
+      "backend": "binance",
+      "api_key": "",
+      "secret": "",
+      "sandbox": false
+    },
+    "alpaca": {
+      "backend": "alpaca",
+      "api_key": "",
+      "secret": "",
+      "paper": true
+    }
+  }
+}

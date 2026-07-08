@@ -1,0 +1,61 @@
+{
+  "symbol": "XAUUSD",
+  "market": "forex",
+  "scalping": {
+    "ema_fast": 5,
+    "ema_slow": 13,
+    "macd_fast": 8,
+    "macd_slow": 17,
+    "macd_signal": 5,
+    "bb_window": 20,
+    "bb_std": 2.0,
+    "stochastic_k": 14,
+    "stochastic_d": 3,
+    "stochastic_slowing": 3,
+    "stochastic_oversold": 20,
+    "stochastic_overbought": 80,
+    "volume_threshold": 1.2,
+    "news_filter_enabled": true,
+    "news_filter_minutes": 15,
+    "min_buy_score": 0.10,
+    "min_sell_score": -0.07,
+    "max_spread_points": 25.0,
+    "stop_loss_pips": 30.0,
+    "take_profit_pips": 20.0,
+    "trailing_stop_pips": 5.0,
+    "risk_per_trade_pct": 0.02,
+    "max_trade_pct": 0.05,
+    "session_filter_enabled": true,
+    "session_london_start": 14,
+    "session_london_end": 18,
+    "session_ny_start": 19,
+    "session_ny_end": 22,
+    "interval_seconds": 300,
+    "candle_timeframe": "5m"
+  },
+  "risk": {
+    "initial_cash": 10000,
+    "max_position_pct": 0.25,
+    "max_trade_pct": 0.10,
+    "stop_loss_pct": 0.05,
+    "take_profit_pct": 0.10,
+    "min_cash": 50
+  },
+  "telegram": {
+    "enabled": true,
+    "bot_token": "",
+    "chat_id": ""
+  },
+  "brokers": {
+    "default": {
+      "backend": "paper",
+      "initial_cash": 10000
+    },
+    "mt5": {
+      "backend": "mt5",
+      "server": "FinexBisnisSolusi-Demo",
+      "login": null,
+      "password": ""
+    }
+  }
+}

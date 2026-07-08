@@ -1,0 +1,76 @@
+{
+  "symbol": "XAUUSD",
+  "market": "forex",
+  "scalping": {
+    "aggressive_mode": true,
+    "timeout_exit_minutes": 10,
+    "max_lot_size": 0,
+    "aggressive_risk_multiplier": 5.0,
+    "ema_fast": 3,
+    "ema_slow": 7,
+    "macd_fast": 4,
+    "macd_slow": 11,
+    "macd_signal": 3,
+    "bb_window": 12,
+    "bb_std": 1.5,
+    "stochastic_k": 7,
+    "stochastic_d": 3,
+    "stochastic_slowing": 2,
+    "stochastic_oversold": 30,
+    "stochastic_overbought": 70,
+    "volume_threshold": 0.6,
+    "trend_filter_bars": 4,
+    "rsi_enabled": true,
+    "rsi_window": 5,
+    "rsi_bullish_threshold": 52.0,
+    "rsi_bearish_threshold": 48.0,
+    "rsi_score_weight": 0.20,
+    "momentum_velocity_enabled": true,
+    "velocity_bars": 2,
+    "velocity_score_weight": 0.15,
+    "multi_confirm_boost": 0.15,
+    "min_bars_override": 10,
+    "news_filter_enabled": false,
+    "news_filter_minutes": 10,
+    "min_buy_score": 0.01,
+    "min_sell_score": -0.01,
+    "max_spread_points": 10.0,
+    "stop_loss_pips": 8.0,
+    "take_profit_pips": 10.0,
+    "trailing_stop_pips": 5.0,
+    "risk_per_trade_pct": 0.005,
+    "max_trade_pct": 0.04,
+    "session_filter_enabled": false,
+    "session_london_start": 14,
+    "session_london_end": 18,
+    "session_ny_start": 19,
+    "session_ny_end": 22,
+    "interval_seconds": 30,
+    "candle_timeframe": "1m"
+  },
+  "risk": {
+    "initial_cash": 10000,
+    "max_position_pct": 0.35,
+    "max_trade_pct": 0.15,
+    "stop_loss_pct": 0.02,
+    "take_profit_pct": 0.05,
+    "min_cash": 50
+  },
+  "telegram": {
+    "enabled": true,
+    "bot_token": "",
+    "chat_id": ""
+  },
+  "brokers": {
+    "default": {
+      "backend": "paper",
+      "initial_cash": 10000
+    },
+    "mt5": {
+      "backend": "mt5",
+      "server": "FinexBisnisSolusi-Demo",
+      "login": null,
+      "password": ""
+    }
+  }
+}

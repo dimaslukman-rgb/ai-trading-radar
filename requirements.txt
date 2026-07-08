@@ -1,0 +1,21 @@
+# AI Trading Bot — Dependencies
+# Install: pip install -r requirements.txt
+
+# Core - no pip dependencies needed for basic functionality
+
+# Broker connectors (install as needed)
+MetaTrader5              # MT5 / Finex integration
+ccxt                     # Binance & other crypto exchanges
+alpaca-py                # Alpaca US stocks
+
+# Windows application (install as needed)
+PyQt6                    # GUI Dashboard
+pystray                  # System tray icon
+Pillow                   # Icon generation for pystray
+win10toast               # Windows toast notifications
+
+# Telegram notifications
+requests                 # Telegram Bot API
+
+# Build tools (install as needed)
+pyinstaller              # .exe packaging

@@ -1,0 +1,40 @@
+# Python/cache
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Local secrets and live broker configs
+.env
+.env.*
+config_finex.json
+config_finex_aggressive_1m.json
+config_xauusd_m1_ultra.json
+config.local.json
+*.local.json
+
+# Keep safe templates tracked
+!config.example.json
+!config_*.example.json
+
+# Runtime logs and local state
+*.log
+bot_bg.log
+perf_report_latest.txt
+nul
+CUsersASUSDocumentsCodex2026-07-06saoutputsai-trading-botbot_bg.log
+
+# Build artifacts
+build/
+dist/
+installer_output/
+*.spec
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
