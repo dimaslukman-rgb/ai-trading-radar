@@ -1,8 +1,7 @@
 ﻿"""Offline serial-key licensing for AI Trading Radar.
 
 This module uses compact HMAC-signed serial keys. It is designed for simple
-offline distribution: generate serials with ``tools/make_serial.py`` and the
-app verifies them locally on every launch.
+offline distribution where the app verifies serials locally on every launch.
 
 Important: because this is offline licensing, a determined attacker can still
 patch or reverse engineer the executable. For strong licensing, use an online

@@ -13,7 +13,6 @@ Lisensi:
 - Aplikasi wajib memakai SERIAL KEY NUMBER saat pertama dibuka.
 - Serial disimpan di `%APPDATA%\AITradingRadar\license.json`.
 - Jika serial expired, aplikasi akan meminta serial baru.
-- Tool pembuat serial ada di source project: `tools\make_serial.py`.
 - Jangan ikutkan folder `tools` atau source code ke customer.
 
 Syarat live trading MT5/Finex:

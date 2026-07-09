@@ -10,7 +10,7 @@ Version: `1.1.0`
 - MetaTrader 5 broker integration for Finex/MT5 accounts.
 - XAUUSD dual-state scalping strategy: momentum and mean reversion.
 - Equity, balance, price, confidence, signal status, news catalyst, and signal history panels.
-- Offline serial-key licensing with `tools/make_serial.py`.
+- Offline serial-key validation for private distribution.
 - Windows packaging support through PyInstaller and IExpress package scripts.
 
 ## Quick Start
@@ -46,18 +46,6 @@ python run_scalping.py --config config.json --broker mt5 --auto-start
 ```text
 http://127.0.0.1:9190
 ```
-
-## Serial Keys
-
-Generate a customer serial:
-
-```powershell
-python tools\make_serial.py --plan 1m --customer "Customer Name"
-```
-
-Supported plans: `1m`, `3m`, `6m`, `1y`, `lifetime`.
-
-Generated serials are appended to `generated_serial_keys.txt`, which is intentionally ignored by Git.
 
 ## Windows Build
 
