@@ -1,4 +1,4 @@
-"""Performance Report — parse trading log + backtest scalping.
+﻿"""Performance Report â€” parse trading log + backtest scalping.
 
 Usage:
     python report_perf.py                    # report from log + backtest
@@ -17,9 +17,9 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 
-# ══════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 #  Log parser
-# ══════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 LOG_RE = re.compile(
     r"^(?P<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+\|\s+\w+\s+\|\s+\w+\s+\|\s+(?P<msg>.*)"
@@ -61,7 +61,7 @@ def parse_log(path: str) -> tuple[list[LogSession], str]:
 
         raw_display.append(line.rstrip())
 
-        if "=== AI Trading Bot Starting ===" in msg:
+        if "=== AI Trading Radar Starting ===" in msg:
             current = LogSession(start=ts)
             sessions.append(current)
         elif current is None:
@@ -93,9 +93,9 @@ def parse_log(path: str) -> tuple[list[LogSession], str]:
     return sessions, "\n".join(raw_display[-30:])  # last 30 lines
 
 
-# ══════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 #  Backtest runner with trade details
-# ══════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 def run_detailed_backtest(config_path: str, data_path: str) -> dict:
     """Run scalping backtest and return detailed results including individual trades."""
@@ -246,22 +246,22 @@ def run_detailed_backtest(config_path: str, data_path: str) -> dict:
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 #  Report formatter
-# ══════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 def format_report(bt: dict, sessions: list[LogSession], raw_log: str) -> str:
     lines: list[str] = []
     sep = "=" * 60
 
-    # ── Header ─────────────────────────────────────────────────────────
+    # â”€â”€ Header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     lines.append("")
     lines.append(sep)
-    lines.append("  AI TRADING BOT — PERFORMANCE REPORT")
+    lines.append("  AI Trading Radar â€” PERFORMANCE REPORT")
     lines.append(f"  Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     lines.append(sep)
 
-    # ── Section 1: Live Session Summary ────────────────────────────────
+    # â”€â”€ Section 1: Live Session Summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     lines.append("")
     lines.append("  [1] LIVE SESSIONS (from trading_bot.log)")
     lines.append("  " + "-" * 56)
@@ -307,9 +307,9 @@ def format_report(bt: dict, sessions: list[LogSession], raw_log: str) -> str:
             for e in all_errors[-3:]:
                 lines.append(f"      {e[:80]}")
 
-    # ── Section 2: Backtest Performance ───────────────────────────────
+    # â”€â”€ Section 2: Backtest Performance â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     lines.append("")
-    lines.append("  [2] BACKTEST PERFORMANCE (scalping — data 5m)")
+    lines.append("  [2] BACKTEST PERFORMANCE (scalping â€” data 5m)")
     lines.append("  " + "-" * 56)
 
     lines.append(f"    Symbol             : {bt['symbol']}")
@@ -335,7 +335,7 @@ def format_report(bt: dict, sessions: list[LogSession], raw_log: str) -> str:
     lines.append(f"    Signal events      : Buy {sig.get('buy', 0)} / Sell {sig.get('sell', 0)} / Hold {sig.get('hold', 0)}")
     lines.append(f"                         ({total_sig} total signals across {bt['bars']} bars)")
 
-    # ── Section 3: Strategy Config ────────────────────────────────────
+    # â”€â”€ Section 3: Strategy Config â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     lines.append("")
     lines.append("  [3] STRATEGY PARAMETERS")
     lines.append("  " + "-" * 56)
@@ -348,7 +348,7 @@ def format_report(bt: dict, sessions: list[LogSession], raw_log: str) -> str:
     lines.append(f"    Min Buy Score       : {cfg['min_buy_score']}")
     lines.append(f"    Max Trade/Equity    : {cfg['max_trade_pct']*100:.0f}%")
 
-    # ── Section 4: Recent Trades Detail ───────────────────────────────
+    # â”€â”€ Section 4: Recent Trades Detail â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     trades = bt.get("trades", [])
     if trades:
         lines.append("")
@@ -364,7 +364,7 @@ def format_report(bt: dict, sessions: list[LogSession], raw_log: str) -> str:
             reason = t["reason"][:25]
             lines.append(f"    {t['date']:>12} {action:<16} {price:>8} {qty:>8} {pnl_str:>8}  {reason}")
 
-    # ── Section 5: Log tail (last 10 lines) ────────────────────────────
+    # â”€â”€ Section 5: Log tail (last 10 lines) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     lines.append("")
     lines.append("  [5] LOG TAIL (last 10 lines)")
     lines.append("  " + "-" * 56)
@@ -389,9 +389,9 @@ def _fmt_duration(d: timedelta) -> str:
     return f"{minutes}m"
 
 
-# ══════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 #  Main
-# ══════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 def main():
     import argparse
@@ -402,7 +402,7 @@ def main():
     parser.add_argument("--data", default="data/sample_prices_5m.csv",
                         help="Price data for backtest (default: data/sample_prices_5m.csv)")
     parser.add_argument("--log", default=None,
-                        help="Path to trading log (default: %%APPDATA%%/AITradingBot/logs/trading_bot.log)")
+                        help="Path to trading log (default: %%APPDATA%%/AITradingRadar/logs/trading_bot.log)")
     parser.add_argument("--no-backtest", action="store_true",
                         help="Skip backtest, log only")
     parser.add_argument("--no-log", action="store_true",
@@ -415,7 +415,7 @@ def main():
     if log_path is None:
         log_path = str(
             Path(os.environ.get("APPDATA", ""))
-            / "AITradingBot" / "logs" / "trading_bot.log"
+            / "AITradingRadar" / "logs" / "trading_bot.log"
         )
 
     # Parse log
@@ -472,3 +472,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

@@ -1,11 +1,11 @@
-; AI Trading Bot — Inno Setup Installer Script
+﻿; AI Trading Radar â€” Inno Setup Installer Script
 ; Build with Inno Setup Compiler (https://jrsoftware.org/isinfo.php)
 
-#define MyAppName "AI Trading Bot"
-#define MyAppVersion "1.0.0"
-#define MyAppPublisher "AI Trading Bot"
+#define MyAppName "AI Trading Radar"
+#define MyAppVersion "1.1.0"
+#define MyAppPublisher "AI Trading Radar"
 #define MyAppURL "https://github.com/ai-trading-bot"
-#define MyAppExeName "AITradingBot.exe"
+#define MyAppExeName "AITradingRadar.exe"
 
 [Setup]
 AppId={{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}
@@ -19,7 +19,7 @@ DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 OutputDir=installer_output
-OutputBaseFilename=AITradingBot_Setup_v{#MyAppVersion}
+OutputBaseFilename=AITradingRadar_Setup_v{#MyAppVersion}
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
@@ -44,7 +44,7 @@ Source: "README.md"; DestDir: "{app}"; Flags: ignoreversion
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{group}\Edit Config"; Filename: "{app}\config.json"
-Name: "{group}\Log Folder"; Filename: "{localappdata}\AITradingBot\logs"
+Name: "{group}\Log Folder"; Filename: "{localappdata}\AITradingRadar\logs"
 Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 Name: "{userstartup}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: autostart
@@ -62,3 +62,4 @@ function InitializeUninstall: Boolean;
 begin
   Result := True;
 end;
+

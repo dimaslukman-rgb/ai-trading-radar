@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-"""🧪 Setup Helper — Finex MT5 Connection Test + Config Generator.
+﻿#!/usr/bin/env python3
+"""ðŸ§ª Setup Helper â€” Finex MT5 Connection Test + Config Generator.
 
 Jalankan:
     python setup_finex.py
@@ -23,7 +23,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-# ── Terminal color support ───────────────────────────────────────────
+# â”€â”€ Terminal color support â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 _USE_COLOR = sys.stdout.isatty() and os.environ.get("TERM") not in ("", None)
 
 
@@ -40,29 +40,29 @@ BOLD = lambda t: _c(1, t)
 
 def print_step(num: int, msg: str):
     print(f"\n{BOLD(f'[{num}] {msg}')}")
-    print("─" * 50)
+    print("â”€" * 50)
 
 
 def print_ok(msg: str):
-    print(f"  {GREEN('✅')} {msg}")
+    print(f"  {GREEN('âœ…')} {msg}")
 
 
 def print_warn(msg: str):
-    print(f"  {YELLOW('⚠️')}  {msg}")
+    print(f"  {YELLOW('âš ï¸')}  {msg}")
 
 
 def print_fail(msg: str):
-    print(f"  {RED('❌')} {msg}")
+    print(f"  {RED('âŒ')} {msg}")
 
 
 def main():
     print(f"\n{BOLD('='*50)}")
-    print(f"{BOLD('   AI TRADING BOT — SETUP FINEZ (Finex MT5)')}")
+    print(f"{BOLD('   AI Trading Radar â€” SETUP FINEZ (Finex MT5)')}")
     print(f"{BOLD('='*50)}")
 
-    # ═══════════════════════════════════════════════════════════════════
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     # STEP 1: Check Python + MetaTrader5 package
-    # ═══════════════════════════════════════════════════════════════════
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     print_step(1, "Cek Python & MetaTrader5 package")
 
     print(f"  Python: {sys.version}")
@@ -75,9 +75,9 @@ def main():
         print("  Jalankan: pip install MetaTrader5")
         return
 
-    # ═══════════════════════════════════════════════════════════════════
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     # STEP 2: Check MT5 Terminal
-    # ═══════════════════════════════════════════════════════════════════
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     print_step(2, "Cek MetaTrader 5 Terminal")
 
     mt5_paths = [
@@ -119,16 +119,16 @@ def main():
                     print("  Setup dibatalkan.")
                     return
         except Exception:
-            print_warn("Tidak bisa cek status MT5 — lanjutkan...")
+            print_warn("Tidak bisa cek status MT5 â€” lanjutkan...")
 
-    # ═══════════════════════════════════════════════════════════════════
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     # STEP 3: Login Credentials
-    # ═══════════════════════════════════════════════════════════════════
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     print_step(3, "Kredensial Finex")
 
     print(f"  {YELLOW('Cara mendapatkan:')}")
-    print("  1. Buka https://finex.co.id → Login ke dashboard")
-    print("  2. Klik akun trading Anda → pilih menu 'Detail'")
+    print("  1. Buka https://finex.co.id â†’ Login ke dashboard")
+    print("  2. Klik akun trading Anda â†’ pilih menu 'Detail'")
     print("  3. Catat: Server, Login ID, dan Password")
     print()
 
@@ -146,9 +146,9 @@ def main():
         print_fail("Server dan password tidak boleh kosong!")
         return
 
-    # ═══════════════════════════════════════════════════════════════════
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     # STEP 4: Test Connection
-    # ═══════════════════════════════════════════════════════════════════
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     print_step(4, "Test Koneksi ke Finex")
 
     import MetaTrader5 as mt5
@@ -187,23 +187,23 @@ def main():
         print(f"    Leverage:    1:{acct.leverage}")
         print(f"    Server:      {acct.server}")
 
-    # ═══════════════════════════════════════════════════════════════════
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     # CHECK: Allow Automated Trading
-    # ═══════════════════════════════════════════════════════════════════
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     print_step("CHECK", "Allow Automated Trading")
 
     try:
         term_info = mt5.terminal_info()
         if term_info:
             if term_info.trade_allowed:
-                print_ok("Algorithmic trading sudah diizinkan ✅")
+                print_ok("Algorithmic trading sudah diizinkan âœ…")
             else:
                 print_fail("Algorithmic trading BELUM diizinkan!")
                 print(f"\n  {YELLOW('Cara mengaktifkan:')}")
                 print("  1. Buka MetaTrader 5")
-                print("  2. Klik menu Tools → Options")
+                print("  2. Klik menu Tools â†’ Options")
                 print("  3. Pilih tab 'Expert Advisors'")
-                print("  4. Centang ☑ 'Allow automated trading'")
+                print("  4. Centang â˜‘ 'Allow automated trading'")
                 print("  5. Klik OK")
                 print("\n  Setelah itu, jalankan ulang setup ini.")
         else:
@@ -211,9 +211,9 @@ def main():
     except Exception:
         print_warn("Tidak bisa verifikasi trade_allowed")
 
-    # ═══════════════════════════════════════════════════════════════════
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     # STEP 5: Discover & Select Symbols
-    # ═══════════════════════════════════════════════════════════════════
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     print_step(5, "Pilih Simbol Trading")
 
     symbols = mt5.symbols_get()
@@ -250,9 +250,9 @@ def main():
 
     mt5.shutdown()
 
-    # ═══════════════════════════════════════════════════════════════════
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     # STEP 6: Generate Config File
-    # ═══════════════════════════════════════════════════════════════════
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     print_step(6, "Generate Konfigurasi Finex")
 
     config_content = f'''{{
@@ -304,16 +304,16 @@ def main():
     config_path.write_text(config_content, encoding="utf-8")
     print_ok(f"Config file: {config_path}")
 
-    print(f"\n  {YELLOW('⚠️  Password disimpan dalam file config.')}")
+    print(f"\n  {YELLOW('âš ï¸  Password disimpan dalam file config.')}")
     print(f"  {YELLOW('   Jangan bagikan file config_finex.json ke siapa pun!')}")
 
-    # ═══════════════════════════════════════════════════════════════════
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     # Generate Batch File
-    # ═══════════════════════════════════════════════════════════════════
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     python_exe = sys.executable
     bat_content = f"""@echo off
 cd /d "%~dp0"
-echo AI Trading Bot — Finex Scalping ({chosen_symbol})
+echo AI Trading Radar â€” Finex Scalping ({chosen_symbol})
 echo ================================================
 echo.
 echo Starting scalping on Finex MT5...
@@ -326,24 +326,24 @@ pause
     bat_path.write_text(bat_content, encoding="utf-8")
     print_ok(f"Batch file: {bat_path}")
 
-    # ═══════════════════════════════════════════════════════════════════
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     # SUMMARY
-    # ═══════════════════════════════════════════════════════════════════
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     print(f"\n{BOLD('='*50)}")
-    print(f"{BOLD('   ✅ SETUP SELESAI!')}")
+    print(f"{BOLD('   âœ… SETUP SELESAI!')}")
     print(f"{BOLD('='*50)}")
     print(f"""
   {GREEN('Koneksi Finex berhasil!')}
 
-  {BOLD('🎯 Simbol trading:')}    {chosen_symbol}
-  {BOLD('🔗 Server:')}          {server}
-  {BOLD('💰 Balance:')}         {acct.balance:.2f} {acct.currency if acct else 'USD'}
+  {BOLD('ðŸŽ¯ Simbol trading:')}    {chosen_symbol}
+  {BOLD('ðŸ”— Server:')}          {server}
+  {BOLD('ðŸ’° Balance:')}         {acct.balance:.2f} {acct.currency if acct else 'USD'}
 
   {BOLD('CARA SCALPING REAL-TIME:')}
 
   1. Buka MetaTrader 5 terminal
      - Pastikan sudah login ke akun Finex
-     - Pastikan ☑ 'Allow Automated Trading' aktif
+     - Pastikan â˜‘ 'Allow Automated Trading' aktif
 
   2. Jalankan bot:
      {CYAN('Double-click: run-finex-scalp.bat')}
@@ -360,3 +360,4 @@ pause
 
 if __name__ == "__main__":
     main()
+

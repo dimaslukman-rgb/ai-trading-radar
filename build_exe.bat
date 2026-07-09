@@ -1,9 +1,9 @@
-@echo off
-title Building AI Trading Bot .exe
+﻿@echo off
+title Building AI Trading Radar .exe
 cd /d "%~dp0"
 
 echo ========================================
-echo  AI Trading Bot — Build .exe
+echo  AI Trading Radar â€” Build .exe
 echo ========================================
 echo.
 
@@ -49,15 +49,15 @@ if not exist "icon.ico" (
 )
 
 REM Clean old build
-if exist "dist\AITradingBot.exe" del "dist\AITradingBot.exe" 2>nul
+if exist "dist\AITradingRadar.exe" del "dist\AITradingRadar.exe" 2>nul
 if exist "build" rmdir /s /q "build" 2>nul
-if exist "AITradingBot.spec" del "AITradingBot.spec" 2>nul
+if exist "AITradingRadar.spec" del "AITradingRadar.spec" 2>nul
 
 REM Build with PyInstaller
-echo [4/4] Building AITradingBot.exe (this may take several minutes)...
+echo [4/4] Building AITradingRadar.exe (this may take several minutes)...
 
 pyinstaller --onefile ^
-    --name "AITradingBot" ^
+    --name "AITradingRadar" ^
     --icon "icon.ico" ^
     --hidden-import="MetaTrader5._core" ^
     --hidden-import="pystray._win32" ^
@@ -72,12 +72,12 @@ pyinstaller --onefile ^
     run_scalping.py
 
 echo.
-if exist "dist\AITradingBot.exe" (
+if exist "dist\AITradingRadar.exe" (
     echo ========================================
     echo  BUILD SUCCESS!
-    echo  File: dist\AITradingBot.exe
+    echo  File: dist\AITradingRadar.exe
     echo  Size: 
-    for %%I in ("dist\AITradingBot.exe") do echo  %%~zI bytes
+    for %%I in ("dist\AITradingRadar.exe") do echo  %%~zI bytes
     echo ========================================
     
     REM Copy config and data
@@ -96,3 +96,4 @@ if exist "dist\AITradingBot.exe" (
 )
 
 pause
+

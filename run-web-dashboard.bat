@@ -1,9 +1,9 @@
-@echo off
-title AI Trading Bot — Web Dashboard
+﻿@echo off
+title AI Trading Radar â€” Web Dashboard
 cd /d "%~dp0"
 
 echo ============================================
-echo   AI Trading Bot — Web Dashboard Launcher
+echo   AI Trading Radar â€” Web Dashboard Launcher
 echo ============================================
 echo.
 echo [1/3] Starting bot in background...
@@ -30,3 +30,4 @@ echo ============================================
 echo.
 echo Tekan CTRL+C untuk stop, atau klik Exit di tray.
 echo.
+

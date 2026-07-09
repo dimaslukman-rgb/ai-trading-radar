@@ -1,4 +1,4 @@
-# AI Trading Radar
+﻿# AI Trading Radar
 
 Windows desktop trading radar for XAUUSD/MT5 with a live web dashboard, serial-key licensing, and MT5 auto-start mode.
 
@@ -64,7 +64,7 @@ Generated serials are appended to `generated_serial_keys.txt`, which is intentio
 Build executable:
 
 ```powershell
-python -m PyInstaller AITradingBot-Windows.spec --clean --noconfirm
+python -m PyInstaller AITradingRadar-Windows.spec --clean --noconfirm
 ```
 
 The spec now produces:
@@ -84,3 +84,4 @@ Do not commit:
 - generated installers or release ZIP files
 
 These are covered by `.gitignore`.
+
