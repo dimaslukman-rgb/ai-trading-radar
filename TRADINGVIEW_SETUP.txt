@@ -1,0 +1,37 @@
+Cara melihat harga realtime dengan TradingView
+
+1. Buka folder ini:
+C:\Users\ASUS\Documents\Codex\2026-07-06\sa\outputs\ai-trading-bot
+
+2. Double click file ini:
+open-tradingview-dashboard.bat
+
+3. Chart akan terbuka di browser.
+
+4. Symbol default:
+BINANCE:BTCUSDT
+
+5. Contoh symbol lain:
+BINANCE:ETHUSDT
+NASDAQ:AAPL
+NASDAQ:TSLA
+OANDA:XAUUSD
+FX:EURUSD
+
+Catatan penting:
+TradingView widget hanya untuk melihat chart.
+Bot Python belum membaca data realtime dari TradingView.
+
+Jika kamu ingin TradingView mengirim sinyal ke bot, gunakan Alert Webhook.
+TradingView akan mengirim HTTP POST ke URL bot saat alert aktif.
+
+Webhook butuh URL publik.
+Contoh alat yang umum dipakai:
+ngrok
+Cloudflare Tunnel
+server VPS
+
+Untuk harga realtime yang dibaca langsung oleh bot, opsi terbaik biasanya WebSocket exchange.
+Contoh:
+Binance WebSocket untuk crypto
+Alpaca atau broker API untuk saham US
