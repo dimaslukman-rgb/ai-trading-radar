@@ -504,7 +504,7 @@ class TradingEngineSafetyIntegrationTests(unittest.TestCase):
             patch("aitrader_bot.app.engine.create_broker", return_value=broker),
             patch("aitrader_bot.app.engine.ScalpingStrategy", side_effect=strategy_factory),
             patch("aitrader_bot.app.engine.notify_web"),
-            patch("aitrader_bot.app.engine._as_wib", return_value=datetime(2026, 7, 10, wib_hour, 0, tzinfo=WIB)),
+            patch("aitrader_bot.decision.as_wib", return_value=datetime(2026, 7, 10, wib_hour, 0, tzinfo=WIB)),
         ):
             engine._run()
 
@@ -558,7 +558,9 @@ class TradingEngineSafetyIntegrationTests(unittest.TestCase):
         broker.place_order("XAUUSD", OrderSide.BUY, 0.1)
         broker.place_order("XAUUSD", OrderSide.SELL, 0.1)
         self._seed_bars(broker, 90.0)
-        self._run_engine_once(broker, "hold")
+        # With modeled bid/ask spread the short is +99 pips at this price;
+        # use a 90-pip TP so both tickets are unambiguously triggered.
+        self._run_engine_once(broker, "hold", take_profit_pips=90)
         self.assertEqual(broker.close_attempts, 2)
         self.assertEqual(broker.get_positions("XAUUSD"), [])
 
@@ -577,7 +579,7 @@ class TradingEngineSafetyIntegrationTests(unittest.TestCase):
         with (
             patch("aitrader_bot.cli.create_broker", return_value=broker),
             patch("aitrader_bot.cli.ScalpingStrategy", side_effect=lambda cfg: _FixedStrategy(cfg, "sell")),
-            patch("aitrader_bot.app.engine._as_wib", return_value=datetime(2026, 7, 10, 14, 0, tzinfo=WIB)),
+            patch("aitrader_bot.decision.as_wib", return_value=datetime(2026, 7, 10, 14, 0, tzinfo=WIB)),
             redirect_stdout(io.StringIO()),
         ):
             _cmd_scalp(args)

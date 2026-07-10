@@ -287,13 +287,13 @@ class PaperBrokerMultiPositionTests(unittest.TestCase):
 
         broker.update_price("XAUUSD", 110)
         by_side = {p.side: p for p in broker.get_positions("XAUUSD")}
-        self.assertAlmostEqual(by_side["buy"].unrealized_pnl, 1.0)
-        self.assertAlmostEqual(by_side["sell"].unrealized_pnl, -2.0)
+        self.assertAlmostEqual(by_side["buy"].unrealized_pnl, 0.995)
+        self.assertAlmostEqual(by_side["sell"].unrealized_pnl, -2.01)
 
         broker.close_position(long_order.order_id)
         broker.close_position(short_order.order_id)
         self.assertEqual(broker.get_positions("XAUUSD"), [])
-        self.assertAlmostEqual(broker.cash, 9999.0)
+        self.assertAlmostEqual(broker.cash, 9998.97)
 
     def test_short_protection_uses_inverse_price_direction(self) -> None:
         broker = PaperBroker(initial_cash=10000)

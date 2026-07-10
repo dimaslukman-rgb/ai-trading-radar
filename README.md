@@ -37,7 +37,9 @@ Safe config templates are included. Real broker credentials are intentionally ig
 - Real-time browser dashboard at `http://127.0.0.1:9190`.
 - Open position table with ticket, side, entry, current price, pips, and P&L.
 - Telegram notification support for signals, lifecycle events, and errors.
-- CSV backtesting and signal generation CLI.
+- CSV backtesting and signal generation CLI. Scalping simulations reuse the
+  live decision service and position state machine, including long/short risk
+  exits, entry gates, higher-timeframe confirmation, sizing, and SL/TP prices.
 - TradingView chart dashboard helper.
 - Windows-friendly launcher scripts and executable build tooling.
 
@@ -166,6 +168,7 @@ aitrader_bot/
   app/             Web dashboard, GUI, tray, logging, Telegram notifier
   broker/          Paper, MT5, CCXT, Alpaca broker adapters
   backtest.py      Historical simulation engine
+  decision.py      Shared live, CLI, and backtest trading decisions
   position_state.py Long/short and multi-ticket position state machine
   scalping.py      XAUUSD scalping strategy and risk manager
   strategy.py      Momentum signal model
@@ -212,6 +215,10 @@ Live execution uses fail-closed entry controls:
 
 - Session, news, and spread filters block new entries but never suppress management of an existing position.
 - Spread thresholds are compared in broker points using each quote's point size.
+- Live, CLI, and scalping backtest paths use the same decision service for
+  risk exits, signal actions, entry sizing, and position-policy enforcement.
+- Paper backtests execute buys at ask, sells at bid, and apply historical
+  session/news/spread gates rather than assuming cost-free fills.
 - MT5 and Paper entries attach stop-loss and take-profit prices to the order. Generic CCXT and Alpaca entries are blocked until their adapters implement atomic protective orders.
 - MT5 position timestamps and protective prices are recovered after restart; missing SL/TP is repaired through the broker when possible.
 - A position is recorded as closed only after the broker reports a full fill. Pending, partial, rejected, and missing close results keep local position state open.
@@ -234,7 +241,7 @@ git grep -n --cached -I -E "password|bot_token|api_key|secret|login"
 
 - Strategy performance reports by market session.
 - Risk dashboard with daily loss limits and max drawdown controls.
-- Backtest parity between live engine exits and historical simulations.
+- Walk-forward strategy validation with session and transaction-cost reports.
 - Docker or Windows Task Scheduler deployment recipes.
 
 ## Contributing

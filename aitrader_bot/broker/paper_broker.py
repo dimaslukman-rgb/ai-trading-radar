@@ -37,6 +37,7 @@ class PaperBroker(BaseBroker):
         self._last_volume: dict[str, float] = {}
         self._trade_log: list[OrderResult] = []
         self._candle_history: dict[str, list[Candle]] = {}
+        self._current_time: datetime | None = None
 
     # ── Properties ─────────────────────────────────────────────────────
 
@@ -90,10 +91,18 @@ class PaperBroker(BaseBroker):
 
     # ── Price management ───────────────────────────────────────────────
 
-    def update_price(self, symbol: str, price: float, volume: float = 1000.0) -> None:
+    def update_price(
+        self,
+        symbol: str,
+        price: float,
+        volume: float = 1000.0,
+        timestamp: datetime | None = None,
+    ) -> None:
         """Push a new price (used by backtest / live feed)."""
         self._last_price[symbol] = price
         self._last_volume[symbol] = volume
+        if timestamp is not None:
+            self._current_time = timestamp
 
     def update_candles(self, symbol: str, candles: list[Candle]) -> None:
         """Store candle history and update latest price."""
@@ -101,6 +110,7 @@ class PaperBroker(BaseBroker):
         if candles:
             self._last_price[symbol] = candles[-1].close
             self._last_volume[symbol] = candles[-1].volume
+            self._current_time = candles[-1].timestamp
 
     # ── Quote ─────────────────────────────────────────────────────────
 
@@ -116,7 +126,7 @@ class PaperBroker(BaseBroker):
             ask=price + half_spread,
             last=price,
             volume=self._last_volume.get(symbol, 1000),
-            timestamp=datetime.now(timezone.utc),
+            timestamp=self._now(),
             point_size=self._point_size,
         )
 
@@ -138,8 +148,17 @@ class PaperBroker(BaseBroker):
         stop_loss: float | None = None,
         take_profit: float | None = None,
     ) -> OrderResult:
-        now = datetime.now(timezone.utc)
-        fill_price = price or self._last_price.get(symbol)
+        now = self._now()
+        fill_price = price
+        if fill_price is None:
+            market_price = self._last_price.get(symbol)
+            if market_price is not None:
+                half_spread = self._spread_points * self._point_size / 2
+                fill_price = (
+                    market_price + half_spread
+                    if side == OrderSide.BUY
+                    else market_price - half_spread
+                )
         if fill_price is None or fill_price <= 0:
             return OrderResult(
                 ExchangeType.PAPER, "", OrderStatus.REJECTED,
@@ -253,10 +272,16 @@ class PaperBroker(BaseBroker):
         return result
 
     def close_position(self, ticket: str) -> OrderResult:
-        now = datetime.now(timezone.utc)
+        now = self._now()
         pos = self._positions.get(ticket)
         if pos is not None:
-            price = self._last_price.get(pos.symbol, pos.avg_price)
+            market_price = self._last_price.get(pos.symbol, pos.avg_price)
+            half_spread = self._spread_points * self._point_size / 2
+            price = (
+                market_price + half_spread
+                if pos.side == "sell"
+                else market_price - half_spread
+            )
             close_side = OrderSide.SELL if pos.side != "sell" else OrderSide.BUY
             if pos.side == "sell":
                 self._cash -= pos.quantity * price
@@ -290,7 +315,7 @@ class PaperBroker(BaseBroker):
         stop_loss: float | None,
         take_profit: float | None,
     ) -> OrderResult:
-        now = datetime.now(timezone.utc)
+        now = self._now()
         position = self._positions.get(ticket)
         if position is not None:
             current_price = self._last_price.get(position.symbol, position.current_price)
@@ -348,6 +373,9 @@ class PaperBroker(BaseBroker):
     @property
     def cash(self) -> float:
         return self._cash
+
+    def _now(self) -> datetime:
+        return self._current_time or datetime.now(timezone.utc)
 
     @property
     def trade_log(self) -> list[OrderResult]:

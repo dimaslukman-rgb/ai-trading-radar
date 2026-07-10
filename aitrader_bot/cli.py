@@ -21,9 +21,10 @@ from .backtest import run_backtest
 from .broker import ExchangeType, OrderSide, OrderStatus, create_broker
 from .config import load_config
 from .data import fetch_yahoo_chart, read_csv_prices
+from .decision import TradingDecisionService, higher_timeframe_confirmation
 from .models import PriceBar
 from .position_state import PositionActionType, PositionPhase, PositionSide, PositionStateMachine
-from .scalping import ScalpingRiskManager, ScalpingStrategy
+from .scalping import ScalpingStrategy
 from .strategy import AiMomentumStrategy
 
 
@@ -187,7 +188,7 @@ def _cmd_scalp(args: argparse.Namespace) -> None:
             broker_supports_short=broker.supports_short_positions,
             broker_supports_multiple=broker.supports_multiple_positions,
         )
-        risk_manager = ScalpingRiskManager(config.scalping)
+        decision_service = TradingDecisionService(config.scalping, position_machine)
         print(f"[OK] Connected — {acct.equity} {acct.currency}")
     except Exception as e:
         print(f"[FAIL] Connection failed: {e}")
@@ -290,28 +291,21 @@ def _cmd_scalp(args: argparse.Namespace) -> None:
                             f"{_order_result_detail(result, pos.quantity)}"
                         )
 
-                now_utc = datetime.now(timezone.utc)
-                for pos in list(managed_positions):
-                    if pos.phase == PositionPhase.CLOSING:
-                        continue
-                    forced_exit = risk_manager.forced_exit_reason(
-                        pos.avg_price,
-                        pos.current_price,
-                        entry_time=pos.opened_at,
-                        current_time=now_utc,
-                        side=pos.side.value,
-                        point_size=quote.point_size,
-                    )
-                    if forced_exit:
-                        close_position(pos, forced_exit)
+                tf_confirmed, tf_reason = higher_timeframe_confirmation(
+                    [bar.close for bar in bars[-25:]], signal.action,
+                )
+                decision_plan = decision_service.decide(
+                    signal.action,
+                    mapped_symbol,
+                    point_size=quote.point_size,
+                    now=datetime.now(timezone.utc),
+                    entry_block_reasons=entry_blocks,
+                    higher_timeframe_confirmed=tf_confirmed,
+                    higher_timeframe_reason=tf_reason,
+                )
 
                 if not close_attempted:
-                    actions = position_machine.plan_signal(
-                        signal.action,
-                        mapped_symbol,
-                        entry_allowed=not entry_blocks,
-                        entry_block_reason="; ".join(entry_blocks),
-                    )
+                    actions = decision_plan.actions
                     for action in actions:
                         if action.action == PositionActionType.HOLD:
                             messages.append(f"[HOLD] {action.reason}")
@@ -329,6 +323,10 @@ def _cmd_scalp(args: argparse.Namespace) -> None:
                         )
                         order_side = OrderSide.BUY if side == PositionSide.LONG else OrderSide.SELL
                         entry_price = quote.ask if side == PositionSide.LONG else quote.bid
+                        account = broker.get_account()
+                        quantity = decision_service.entry_quantity(
+                            account.balance, account.equity, entry_price,
+                        )
                         protection = _compute_sl_tp(
                             entry_price,
                             side.value,
@@ -339,7 +337,7 @@ def _cmd_scalp(args: argparse.Namespace) -> None:
                         result = broker.place_order(
                             mapped_symbol,
                             order_side,
-                            0.01,
+                            quantity,
                             stop_loss=protection["sl"] if config.scalping.stop_loss_pips > 0 else None,
                             take_profit=protection["tp"] if config.scalping.take_profit_pips > 0 else None,
                         )
@@ -349,7 +347,10 @@ def _cmd_scalp(args: argparse.Namespace) -> None:
                         elif result.status == OrderStatus.PENDING:
                             messages.append(f"[ENTRY PENDING {side.name}] {result.message}")
                         else:
-                            messages.append(f"[ENTRY REJECTED {side.name}] {_order_result_detail(result, 0.01)}")
+                            messages.append(
+                                f"[ENTRY REJECTED {side.name}] "
+                                f"{_order_result_detail(result, quantity)}"
+                            )
 
                 print(f"[{iteration}] {' || '.join(messages)}")
 

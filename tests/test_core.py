@@ -136,7 +136,7 @@ class BrokerTests(unittest.TestCase):
         # Buy
         result = broker.place_order("BTCUSD", OrderSide.BUY, 0.1)
         self.assertEqual(result.status, OrderStatus.FILLED)
-        self.assertAlmostEqual(broker.cash, 10000 - 0.1 * 50000)
+        self.assertAlmostEqual(broker.cash, 10000 - 0.1 * result.avg_fill_price)
 
         # Verify position
         positions = broker.get_positions()
@@ -145,7 +145,7 @@ class BrokerTests(unittest.TestCase):
         # Close the long ticket explicitly
         result = broker.close_position(positions[0].ticket)
         self.assertEqual(result.status, OrderStatus.FILLED)
-        self.assertAlmostEqual(broker.cash, 10000)
+        self.assertAlmostEqual(broker.cash, 9999.99)
         self.assertEqual(len(broker.get_positions()), 0)
 
     def test_paper_broker_insufficient_funds(self) -> None:

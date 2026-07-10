@@ -445,6 +445,13 @@ class ScalpingRiskManager:
 
         # ═══ TIMEOUT EXIT (aggressive mode) ═══════════════════════════
         if self.config.aggressive_mode and entry_time is not None and current_time is not None:
+            # Broker timestamps are commonly timezone-aware while imported
+            # historical candles may be naive. Normalize only for elapsed-time
+            # arithmetic so live and backtest decisions behave alike.
+            if entry_time.tzinfo is None and current_time.tzinfo is not None:
+                entry_time = entry_time.replace(tzinfo=current_time.tzinfo)
+            elif current_time.tzinfo is None and entry_time.tzinfo is not None:
+                current_time = current_time.replace(tzinfo=entry_time.tzinfo)
             elapsed_min = (current_time - entry_time).total_seconds() / 60.0
             timeout = self.config.timeout_exit_minutes
             if timeout > 0 and elapsed_min >= timeout:

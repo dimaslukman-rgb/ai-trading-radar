@@ -15,13 +15,22 @@ from __future__ import annotations
 
 import math
 import time
-from datetime import datetime, timedelta, timezone
-from decimal import Decimal
+from datetime import datetime, timezone
 from queue import Queue
 from threading import Event, Thread
 
 from aitrader_bot.broker import OrderSide, OrderStatus, create_broker
 from aitrader_bot.config import BotConfig, load_config
+from aitrader_bot.decision import (
+    WIB,
+    TradingDecisionService,
+    as_wib as _as_wib,
+    compute_protective_prices as _compute_sl_tp,
+    entry_safety_blocks as _entry_safety_blocks,
+    higher_timeframe_confirmation,
+    is_entry_session_open as _is_entry_session_open,
+    minutes_in_window as _minutes_in_window,
+)
 from aitrader_bot.indicators import ema, macd, bollinger_bands, stochastic, rsi, volatility
 from aitrader_bot.models import PriceBar
 from aitrader_bot.position_state import (
@@ -30,7 +39,7 @@ from aitrader_bot.position_state import (
     PositionSide,
     PositionStateMachine,
 )
-from aitrader_bot.scalping import ScalpingStrategy, ScalpingRiskManager
+from aitrader_bot.scalping import ScalpingStrategy
 
 from . import dashboard_data as dd
 from .logger import setup_logging
@@ -41,74 +50,11 @@ from .web_dashboard import notify as notify_web
 log = setup_logging(__name__)
 
 ACCOUNT_REFRESH_SECONDS = 10.0
-WIB = timezone(timedelta(hours=7), name="WIB")
 
 
 # ═══════════════════════════════════════════════════════════════════════
 #  Analysis helpers for AI Trading Radar dashboard
 # ═══════════════════════════════════════════════════════════════════════
-
-def _minutes_in_window(current: int, start: int, end: int) -> bool:
-    """Return whether a minute-of-day falls in a possibly overnight window."""
-    if start <= end:
-        return start <= current < end
-    return current >= start or current < end
-
-
-def _as_wib(now: datetime | None = None) -> datetime:
-    if now is None:
-        return datetime.now(WIB)
-    if now.tzinfo is None:
-        return now.replace(tzinfo=WIB)
-    return now.astimezone(WIB)
-
-
-def _is_entry_session_open(config, now: datetime | None = None) -> bool:
-    """Check the configured entry sessions in WIB; exits are never gated."""
-    if not config.session_filter_enabled:
-        return True
-    local = _as_wib(now)
-    current = local.hour * 60 + local.minute
-    london_start = config.session_london_start * 60
-    london_end = config.session_london_end * 60
-    ny_start = config.session_ny_start * 60 + 30
-    ny_end = config.session_ny_end * 60
-    return (
-        _minutes_in_window(current, london_start, london_end)
-        or _minutes_in_window(current, ny_start, ny_end)
-    )
-
-
-def _entry_safety_blocks(
-    config,
-    quote,
-    *,
-    supports_attached_protection: bool,
-    now: datetime | None = None,
-    news_event: dict | None = None,
-) -> list[str]:
-    """Return fail-closed reasons that prevent a new entry order."""
-    blocks: list[str] = []
-    if not _is_entry_session_open(config, now):
-        blocks.append(f"outside trading session (WIB {_as_wib(now):%H:%M})")
-
-    if config.news_filter_enabled and news_event:
-        blocks.append(f"news filter: {news_event['name']} ({news_event['phase']})")
-
-    if config.max_spread_points > 0:
-        spread_points = quote.spread_points
-        if spread_points is None:
-            blocks.append("spread point size unavailable")
-        elif spread_points > config.max_spread_points:
-            blocks.append(
-                f"spread {spread_points:.1f}pts > max {config.max_spread_points:.1f}pts"
-            )
-
-    protection_required = config.stop_loss_pips > 0 or config.take_profit_pips > 0
-    if protection_required and not supports_attached_protection:
-        blocks.append("broker does not support attached SL/TP")
-    return blocks
-
 
 def _position_entry_time(position) -> datetime | None:
     """Normalize broker position time to aware UTC for restart recovery."""
@@ -319,50 +265,6 @@ def _compute_dollar_pnl(
     return price_diff * quantity * _contract_size(symbol)
 
 
-def _compute_sl_tp(
-    price: float,
-    action: str,
-    config,
-    symbol: str = "XAUUSD",
-    point_size: float | None = None,
-) -> dict[str, float]:
-    """Compute entry, SL, TP, and R-R ratio.
-
-    pip_value is symbol-dependent:
-      - XAUUSD: 1 pip = $0.10
-      - Most forex (EURUSD, GBPUSD etc.): 1 pip = $0.0001
-      - JPY pairs: 1 pip = ¥0.01
-    """
-    sl_pips = config.stop_loss_pips
-    tp_pips = config.take_profit_pips
-    # MT5 convention used here: one pip is ten broker points.
-    if point_size is not None and point_size > 0:
-        pip_value = point_size * 10
-        digits = max(0, -Decimal(str(point_size)).normalize().as_tuple().exponent)
-    else:
-        sym_upper = symbol.upper()
-        if "XAU" in sym_upper or "GOLD" in sym_upper:
-            pip_value, digits = 0.1, 2
-        elif "JPY" in sym_upper:
-            pip_value, digits = 0.01, 3
-        else:
-            pip_value, digits = 0.0001, 5
-    if action == "buy":
-        entry = price
-        sl = round(price - sl_pips * pip_value, digits)
-        tp = round(price + tp_pips * pip_value, digits)
-    elif action == "sell":
-        entry = price
-        sl = round(price + sl_pips * pip_value, digits)
-        tp = round(price - tp_pips * pip_value, digits)
-    else:
-        entry = price
-        sl = round(price - sl_pips * pip_value, digits)
-        tp = round(price + tp_pips * pip_value, digits)
-    rr = round(tp_pips / sl_pips, 1) if sl_pips > 0 else 0.0
-    return {"entry": entry, "sl": sl, "tp": tp, "rr": rr}
-
-
 def _dashboard_position_rows(positions, point_size: float | None) -> list[dict]:
     pip_value = point_size * 10 if point_size else 0.1
     rows: list[dict] = []
@@ -468,7 +370,6 @@ class TradingEngine:
         symbol = self.config.symbol
         mapped_symbol = self.broker.get_symbol_map(symbol)
         strategy = ScalpingStrategy(self.config.scalping)
-        risk_mgr = ScalpingRiskManager(self.config.scalping)
 
         # Init Telegram notifier
         tg = TelegramNotifier(
@@ -517,6 +418,7 @@ class TradingEngine:
                 broker_supports_short=self.broker.supports_short_positions,
                 broker_supports_multiple=self.broker.supports_multiple_positions,
             )
+            decision_service = TradingDecisionService(strategy.config, position_machine)
 
             # Update MT5 account information for dashboard
             mt5_login = None
@@ -730,25 +632,9 @@ class TradingEngine:
                 if not entry_blocks and signal.action in ("buy", "sell"):
                     try:
                         tf_candles = self.broker.fetch_candles(mapped_symbol, "5m", 25)
-                        if len(tf_candles) >= 15:
-                            tf_closes = [c.close for c in tf_candles]
-                            tf_ema_fast = ema(tf_closes, 9)
-                            tf_ema_slow = ema(tf_closes, 21)
-                            tf_latest = tf_closes[-1]
-                            if tf_ema_fast is not None and tf_ema_slow is not None and tf_latest > 0:
-                                # Calculate EMA divergence as % of price
-                                ema_diff_pct = abs(tf_ema_fast - tf_ema_slow) / tf_latest * 100
-                                tf_bullish = tf_ema_fast > tf_ema_slow
-                                # Only reject if EMA divergence > 1.0% (very strong trend)
-                                if signal.action == "buy" and not tf_bullish and ema_diff_pct > 1.0:
-                                    tf_confirmed = False
-                                    tf_reason = f"M5 strongly bearish ({ema_diff_pct:.2f}%), skip BUY"
-                                elif signal.action == "sell" and tf_bullish and ema_diff_pct > 1.0:
-                                    tf_confirmed = False
-                                    tf_reason = f"M5 strongly bullish ({ema_diff_pct:.2f}%), skip SELL"
-                                else:
-                                    tf_dir = "bullish" if tf_bullish else "bearish"
-                                    tf_reason = f"M5 {tf_dir} divergence {ema_diff_pct:.2f}% — ok"
+                        tf_confirmed, tf_reason = higher_timeframe_confirmation(
+                            [c.close for c in tf_candles], signal.action,
+                        )
                     except Exception:
                         pass  # If can't fetch M5, just proceed with M1 signal
 
@@ -789,12 +675,10 @@ class TradingEngine:
 
                 # 5. Execute the position state machine.
                 signal_messages: list[str] = []
-                close_attempted = False
                 broker_state_changed = False
 
                 def execute_close(pos, reason: str) -> None:
-                    nonlocal close_attempted, broker_state_changed
-                    close_attempted = True
+                    nonlocal broker_state_changed
                     broker_state_changed = True
                     position_machine.mark_closing(pos.ticket)
                     result = self.broker.close_position(pos.ticket)
@@ -827,33 +711,18 @@ class TradingEngine:
                         log.error(msg)
                         dd.add_log(f"ERROR: {msg}")
 
-                # Risk exits are evaluated independently for every ticket.
-                now_utc = datetime.now(timezone.utc)
-                for pos in list(managed_positions):
-                    if pos.phase == PositionPhase.CLOSING:
-                        continue
-                    forced_exit = risk_mgr.forced_exit_reason(
-                        pos.avg_price,
-                        pos.current_price,
-                        entry_time=pos.opened_at,
-                        current_time=now_utc,
-                        side=pos.side.value,
-                        point_size=quote.point_size,
-                    )
-                    if forced_exit:
-                        execute_close(pos, forced_exit)
+                decision_plan = decision_service.decide(
+                    signal.action,
+                    mapped_symbol,
+                    point_size=quote.point_size,
+                    now=datetime.now(timezone.utc),
+                    entry_block_reasons=entry_blocks,
+                    higher_timeframe_confirmed=tf_confirmed,
+                    higher_timeframe_reason=tf_reason,
+                )
 
-                # Do not reverse or add exposure in the same cycle as a risk close.
-                if not close_attempted:
-                    entry_reason_parts = list(entry_blocks)
-                    if not tf_confirmed:
-                        entry_reason_parts.append(tf_reason or "higher timeframe rejected entry")
-                    actions = position_machine.plan_signal(
-                        signal.action,
-                        mapped_symbol,
-                        entry_allowed=not entry_reason_parts,
-                        entry_block_reason="; ".join(entry_reason_parts),
-                    )
+                if decision_plan.actions:
+                    actions = decision_plan.actions
 
                     for action in actions:
                         if action.action == PositionActionType.HOLD:
@@ -882,12 +751,7 @@ class TradingEngine:
                         except Exception:
                             eq = 10000.0
                             bal = 10000.0
-                        qty = risk_mgr.buy_quantity(bal, eq, entry_reference)
-                        if strategy.config.aggressive_mode and qty < 0.05:
-                            max_by_equity = bal * strategy.config.max_trade_pct / entry_reference
-                            qty = max(0.05, min(max_by_equity, bal * 0.05 / entry_reference))
-                        if qty <= 0:
-                            qty = 0.01
+                        qty = decision_service.entry_quantity(bal, eq, entry_reference)
 
                         protection = _compute_sl_tp(
                             entry_reference,
