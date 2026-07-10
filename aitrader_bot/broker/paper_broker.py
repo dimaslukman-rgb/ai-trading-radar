@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 
 from .base import (
@@ -21,8 +22,15 @@ from .base import (
 class PaperBroker(BaseBroker):
     """In-memory simulated broker for testing scalping strategies."""
 
-    def __init__(self, initial_cash: float = 10000.0):
+    def __init__(
+        self,
+        initial_cash: float = 10000.0,
+        point_size: float = 0.01,
+        spread_points: float = 10.0,
+    ):
         self._cash = initial_cash
+        self._point_size = point_size
+        self._spread_points = spread_points
         self._positions: dict[str, PositionInfo] = {}
         self._connected = False
         self._last_price: dict[str, float] = {}
@@ -35,6 +43,10 @@ class PaperBroker(BaseBroker):
     @property
     def exchange_type(self) -> ExchangeType:
         return ExchangeType.PAPER
+
+    @property
+    def supports_attached_protection(self) -> bool:
+        return True
 
     @property
     def is_connected(self) -> bool:
@@ -87,14 +99,16 @@ class PaperBroker(BaseBroker):
         price = self._last_price.get(symbol)
         if price is None:
             return None
+        half_spread = self._spread_points * self._point_size / 2
         return Quote(
             symbol=symbol,
             exchange=ExchangeType.PAPER,
-            bid=price * 0.9995,
-            ask=price * 1.0005,
+            bid=price - half_spread,
+            ask=price + half_spread,
             last=price,
             volume=self._last_volume.get(symbol, 1000),
             timestamp=datetime.now(timezone.utc),
+            point_size=self._point_size,
         )
 
     # ── Candles ────────────────────────────────────────────────────────
@@ -112,6 +126,8 @@ class PaperBroker(BaseBroker):
         quantity: float,
         order_type: str = "market",
         price: float | None = None,
+        stop_loss: float | None = None,
+        take_profit: float | None = None,
     ) -> OrderResult:
         now = datetime.now(timezone.utc)
         fill_price = price or self._last_price.get(symbol)
@@ -123,6 +139,18 @@ class PaperBroker(BaseBroker):
             )
 
         if side == OrderSide.BUY:
+            if stop_loss is not None and stop_loss >= fill_price:
+                return OrderResult(
+                    ExchangeType.PAPER, "", OrderStatus.REJECTED,
+                    symbol, side, quantity, 0.0, 0.0, 0.0,
+                    "buy stop loss must be below entry price", now,
+                )
+            if take_profit is not None and take_profit <= fill_price:
+                return OrderResult(
+                    ExchangeType.PAPER, "", OrderStatus.REJECTED,
+                    symbol, side, quantity, 0.0, 0.0, 0.0,
+                    "buy take profit must be above entry price", now,
+                )
             cost = quantity * fill_price
             if cost > self._cash:
                 return OrderResult(
@@ -143,7 +171,11 @@ class PaperBroker(BaseBroker):
                     avg_price=new_avg,
                     current_price=fill_price,
                     unrealized_pnl=0.0,
-                    ticket=str(uuid.uuid4()),
+                    ticket=existing.ticket,
+                    side=existing.side or "buy",
+                    opened_at=existing.opened_at or now,
+                    stop_loss=stop_loss if stop_loss is not None else existing.stop_loss,
+                    take_profit=take_profit if take_profit is not None else existing.take_profit,
                 )
             else:
                 self._positions[symbol] = PositionInfo(
@@ -154,6 +186,10 @@ class PaperBroker(BaseBroker):
                     current_price=fill_price,
                     unrealized_pnl=0.0,
                     ticket=str(uuid.uuid4()),
+                    side="buy",
+                    opened_at=now,
+                    stop_loss=stop_loss,
+                    take_profit=take_profit,
                 )
             self._cash -= cost
 
@@ -180,6 +216,10 @@ class PaperBroker(BaseBroker):
                     current_price=fill_price,
                     unrealized_pnl=pnl,
                     ticket=existing.ticket,
+                    side=existing.side,
+                    opened_at=existing.opened_at,
+                    stop_loss=existing.stop_loss,
+                    take_profit=existing.take_profit,
                 )
 
         order_id = str(uuid.uuid4())[:8]
@@ -215,6 +255,10 @@ class PaperBroker(BaseBroker):
                     current_price=cur,
                     unrealized_pnl=(cur - pos.avg_price) * pos.quantity,
                     ticket=pos.ticket,
+                    side=pos.side,
+                    opened_at=pos.opened_at,
+                    stop_loss=pos.stop_loss,
+                    take_profit=pos.take_profit,
                 ))
             return result
 
@@ -229,6 +273,10 @@ class PaperBroker(BaseBroker):
                 current_price=cur,
                 unrealized_pnl=(cur - pos.avg_price) * pos.quantity,
                 ticket=pos.ticket,
+                side=pos.side,
+                opened_at=pos.opened_at,
+                stop_loss=pos.stop_loss,
+                take_profit=pos.take_profit,
             ))
         return result
 
@@ -241,6 +289,55 @@ class PaperBroker(BaseBroker):
         return OrderResult(
             ExchangeType.PAPER, "", OrderStatus.REJECTED,
             "", OrderSide.SELL, 0, 0.0, 0.0, 0.0,
+            f"ticket {ticket} not found", now,
+        )
+
+    def set_position_protection(
+        self,
+        ticket: str,
+        stop_loss: float | None,
+        take_profit: float | None,
+    ) -> OrderResult:
+        now = datetime.now(timezone.utc)
+        for symbol, position in self._positions.items():
+            if position.ticket != ticket:
+                continue
+            current_price = self._last_price.get(symbol, position.current_price)
+            if position.side in ("", "buy"):
+                if stop_loss is not None and stop_loss >= current_price:
+                    return OrderResult(
+                        ExchangeType.PAPER, "", OrderStatus.REJECTED,
+                        symbol, OrderSide.BUY, position.quantity, 0.0, 0.0, 0.0,
+                        "buy stop loss must be below current price", now,
+                    )
+                if take_profit is not None and take_profit <= current_price:
+                    return OrderResult(
+                        ExchangeType.PAPER, "", OrderStatus.REJECTED,
+                        symbol, OrderSide.BUY, position.quantity, 0.0, 0.0, 0.0,
+                        "buy take profit must be above current price", now,
+                    )
+            self._positions[symbol] = replace(
+                position,
+                current_price=current_price,
+                stop_loss=stop_loss,
+                take_profit=take_profit,
+            )
+            return OrderResult(
+                ExchangeType.PAPER,
+                ticket,
+                OrderStatus.FILLED,
+                symbol,
+                OrderSide.BUY if position.side in ("", "buy") else OrderSide.SELL,
+                position.quantity,
+                position.quantity,
+                current_price,
+                current_price,
+                "position protection updated",
+                now,
+            )
+        return OrderResult(
+            ExchangeType.PAPER, "", OrderStatus.REJECTED,
+            "", OrderSide.BUY, 0.0, 0.0, 0.0, 0.0,
             f"ticket {ticket} not found", now,
         )
 

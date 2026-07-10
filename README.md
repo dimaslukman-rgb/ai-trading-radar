@@ -187,7 +187,15 @@ Local live profiles are excluded from Git:
 
 ## Safety Model
 
-The repository is designed to avoid accidental credential leakage:
+Live execution uses fail-closed entry controls:
+
+- Session, news, and spread filters block new entries but never suppress management of an existing position.
+- Spread thresholds are compared in broker points using each quote's point size.
+- MT5 and Paper entries attach stop-loss and take-profit prices to the order. Generic CCXT and Alpaca entries are blocked until their adapters implement atomic protective orders.
+- MT5 position timestamps and protective prices are recovered after restart; missing SL/TP is repaired through the broker when possible.
+- A position is recorded as closed only after the broker reports a full fill. Pending, partial, rejected, and missing close results keep local position state open.
+
+The repository also avoids accidental credential leakage:
 
 - Live configs are ignored by `.gitignore`.
 - Build artifacts, logs, cache files, and executable output are ignored.
@@ -248,4 +256,3 @@ The authors and contributors are not responsible for losses, damages, missed pro
 
 - GitHub: [@dimaslukman-rgb](https://github.com/dimaslukman-rgb)
 - Repository: [dimaslukman-rgb/ai-trading-radar](https://github.com/dimaslukman-rgb/ai-trading-radar)
-

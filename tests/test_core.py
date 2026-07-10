@@ -170,8 +170,9 @@ class BrokerTests(unittest.TestCase):
         quote = broker.get_quote("AAPL")
         self.assertIsNotNone(quote)
         self.assertEqual(quote.last, 150.0)
-        self.assertAlmostEqual(quote.bid, 150.0 * 0.9995)
-        self.assertAlmostEqual(quote.ask, 150.0 * 1.0005)
+        self.assertAlmostEqual(quote.bid, 149.95)
+        self.assertAlmostEqual(quote.ask, 150.05)
+        self.assertAlmostEqual(quote.spread_points, 10.0)
 
     def test_paper_broker_close_position_by_ticket(self) -> None:
         broker = create_broker("paper", initial_cash=10000)

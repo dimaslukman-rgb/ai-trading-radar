@@ -40,6 +40,7 @@ class Quote:
     volume: float
     timestamp: datetime
     raw: dict = field(default_factory=dict)  # original exchange data
+    point_size: float | None = None
 
     @property
     def spread(self) -> float:
@@ -49,6 +50,13 @@ class Quote:
     def spread_pct(self) -> float:
         mid = (self.bid + self.ask) / 2
         return self.spread / mid if mid > 0 else 0.0
+
+    @property
+    def spread_points(self) -> float | None:
+        """Return the spread in broker points when point size is known."""
+        if self.point_size is None or self.point_size <= 0:
+            return None
+        return self.spread / self.point_size
 
     @property
     def mid(self) -> float:
@@ -98,6 +106,9 @@ class PositionInfo:
     realized_pnl: float = 0.0
     ticket: str = ""
     side: str = ""
+    opened_at: datetime | None = None
+    stop_loss: float | None = None
+    take_profit: float | None = None
 
 
 @dataclass(frozen=True)
@@ -120,6 +131,11 @@ class BaseBroker(ABC):
     @abstractmethod
     def exchange_type(self) -> ExchangeType:
         ...
+
+    @property
+    def supports_attached_protection(self) -> bool:
+        """Whether entry orders can atomically attach broker-side SL/TP."""
+        return False
 
     @abstractmethod
     def connect(self) -> bool:
@@ -159,8 +175,10 @@ class BaseBroker(ABC):
         quantity: float,
         order_type: str = "market",
         price: float | None = None,
+        stop_loss: float | None = None,
+        take_profit: float | None = None,
     ) -> OrderResult:
-        """Place a trade order."""
+        """Place a trade order, optionally with attached protective prices."""
         ...
 
     @abstractmethod
@@ -172,6 +190,28 @@ class BaseBroker(ABC):
     def close_position(self, ticket: str) -> OrderResult:
         """Close a position by ticket."""
         ...
+
+    def set_position_protection(
+        self,
+        ticket: str,
+        stop_loss: float | None,
+        take_profit: float | None,
+    ) -> OrderResult:
+        """Set broker-side SL/TP on an existing position."""
+        now = datetime.now(timezone.utc)
+        return OrderResult(
+            self.exchange_type,
+            "",
+            OrderStatus.REJECTED,
+            "",
+            OrderSide.BUY,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            "position protection is not supported by this broker",
+            now,
+        )
 
     def get_symbol_map(self, internal_symbol: str) -> str:
         """Map internal symbol (e.g. BTC-USD) to broker-specific symbol (e.g. BTCUSD, BTC/USDT)."""

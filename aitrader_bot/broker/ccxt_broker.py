@@ -135,6 +135,13 @@ class CcxtBroker(BaseBroker):
             ticker = self._exchange.fetch_ticker(mapped)
             if ticker is None or ticker.get("last") is None:
                 return None
+            market = self._exchange.market(mapped)
+            price_precision = (market.get("precision") or {}).get("price")
+            point_size = None
+            if isinstance(price_precision, int) and price_precision >= 0:
+                point_size = 10 ** (-price_precision)
+            elif isinstance(price_precision, (int, float)) and price_precision > 0:
+                point_size = float(price_precision)
             return Quote(
                 symbol=mapped,
                 exchange=ExchangeType.BINANCE,
@@ -147,6 +154,7 @@ class CcxtBroker(BaseBroker):
                     tz=timezone.utc,
                 ),
                 raw=ticker,
+                point_size=point_size,
             )
         except Exception:
             return None
@@ -185,11 +193,21 @@ class CcxtBroker(BaseBroker):
         quantity: float,
         order_type: str = "market",
         price: float | None = None,
+        stop_loss: float | None = None,
+        take_profit: float | None = None,
     ) -> OrderResult:
         self._ensure_connected()
         mapped = self.get_symbol_map(symbol)
         ccxt_side = "buy" if side == OrderSide.BUY else "sell"
         now = datetime.now(timezone.utc)
+
+        if stop_loss is not None or take_profit is not None:
+            return OrderResult(
+                ExchangeType.BINANCE, "", OrderStatus.REJECTED,
+                mapped, side, quantity, 0.0, 0.0, 0.0,
+                "attached protective orders are not supported by the generic CCXT adapter",
+                now,
+            )
 
         try:
             if order_type == "market":

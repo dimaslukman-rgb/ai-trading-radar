@@ -15,7 +15,8 @@ from __future__ import annotations
 
 import math
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from queue import Queue
 from threading import Event, Thread
 
@@ -34,23 +35,114 @@ from .web_dashboard import notify as notify_web
 log = setup_logging(__name__)
 
 ACCOUNT_REFRESH_SECONDS = 10.0
+WIB = timezone(timedelta(hours=7), name="WIB")
 
 
 # ═══════════════════════════════════════════════════════════════════════
 #  Analysis helpers for AI Trading Radar dashboard
 # ═══════════════════════════════════════════════════════════════════════
 
-def _detect_sessions() -> dict[str, bool]:
+def _minutes_in_window(current: int, start: int, end: int) -> bool:
+    """Return whether a minute-of-day falls in a possibly overnight window."""
+    if start <= end:
+        return start <= current < end
+    return current >= start or current < end
+
+
+def _as_wib(now: datetime | None = None) -> datetime:
+    if now is None:
+        return datetime.now(WIB)
+    if now.tzinfo is None:
+        return now.replace(tzinfo=WIB)
+    return now.astimezone(WIB)
+
+
+def _is_entry_session_open(config, now: datetime | None = None) -> bool:
+    """Check the configured entry sessions in WIB; exits are never gated."""
+    if not config.session_filter_enabled:
+        return True
+    local = _as_wib(now)
+    current = local.hour * 60 + local.minute
+    london_start = config.session_london_start * 60
+    london_end = config.session_london_end * 60
+    ny_start = config.session_ny_start * 60 + 30
+    ny_end = config.session_ny_end * 60
+    return (
+        _minutes_in_window(current, london_start, london_end)
+        or _minutes_in_window(current, ny_start, ny_end)
+    )
+
+
+def _entry_safety_blocks(
+    config,
+    quote,
+    *,
+    supports_attached_protection: bool,
+    now: datetime | None = None,
+    news_event: dict | None = None,
+) -> list[str]:
+    """Return fail-closed reasons that prevent a new entry order."""
+    blocks: list[str] = []
+    if not _is_entry_session_open(config, now):
+        blocks.append(f"outside trading session (WIB {_as_wib(now):%H:%M})")
+
+    if config.news_filter_enabled and news_event:
+        blocks.append(f"news filter: {news_event['name']} ({news_event['phase']})")
+
+    if config.max_spread_points > 0:
+        spread_points = quote.spread_points
+        if spread_points is None:
+            blocks.append("spread point size unavailable")
+        elif spread_points > config.max_spread_points:
+            blocks.append(
+                f"spread {spread_points:.1f}pts > max {config.max_spread_points:.1f}pts"
+            )
+
+    protection_required = config.stop_loss_pips > 0 or config.take_profit_pips > 0
+    if protection_required and not supports_attached_protection:
+        blocks.append("broker does not support attached SL/TP")
+    return blocks
+
+
+def _position_entry_time(position) -> datetime | None:
+    """Normalize broker position time to aware UTC for restart recovery."""
+    opened_at = getattr(position, "opened_at", None)
+    if opened_at is None:
+        return None
+    if opened_at.tzinfo is None:
+        return opened_at.replace(tzinfo=timezone.utc)
+    return opened_at.astimezone(timezone.utc)
+
+
+def _is_close_complete(result, expected_quantity: float) -> bool:
+    """Only a fully filled close may transition local state to closed."""
+    expected = abs(expected_quantity)
+    return (
+        result is not None
+        and result.status == OrderStatus.FILLED
+        and abs(result.filled_qty) + 1e-12 >= expected
+    )
+
+
+def _order_result_detail(result, expected_quantity: float) -> str:
+    expected = abs(expected_quantity)
+    if result is None:
+        return f"status=missing filled=0.0000/{expected:.4f} | broker returned no result"
+    return (
+        f"status={result.status.value} filled={abs(result.filled_qty):.4f}/"
+        f"{expected:.4f} | {result.message}"
+    )
+
+
+def _detect_sessions(now: datetime | None = None) -> dict[str, bool]:
     """Detect active trading sessions (WIB / UTC+7)."""
-    now = datetime.now(timezone.utc)
-    utc_h = now.hour
-    utc_m = now.minute
-    utc_min = utc_h * 60 + utc_m
+    local = _as_wib(now)
+    minute = local.hour * 60 + local.minute
     return {
-        "sydney": 17 * 60 <= utc_min <= 2 * 60,       # 00:00-09:00 WIB
-        "tokyo": 0 <= utc_min <= 9 * 60,               # 07:00-16:00 WIB
-        "london": 6 * 60 <= utc_min <= 15 * 60,         # 13:00-22:00 WIB
-        "new_york": 12 * 60 + 30 <= utc_min <= 21 * 60 + 30,  # 19:30-04:30 WIB
+        "sydney": _minutes_in_window(minute, 0, 9 * 60),
+        "tokyo": _minutes_in_window(minute, 7 * 60, 16 * 60),
+        "london": _minutes_in_window(minute, 13 * 60, 22 * 60),
+        "new_york": _minutes_in_window(minute, 19 * 60 + 30, 4 * 60 + 30),
     }
 
 
@@ -213,7 +305,13 @@ def _compute_dollar_pnl(symbol: str, entry_price: float, exit_price: float, quan
     return price_diff * quantity * _contract_size(symbol)
 
 
-def _compute_sl_tp(price: float, action: str, config, symbol: str = "XAUUSD") -> dict[str, float]:
+def _compute_sl_tp(
+    price: float,
+    action: str,
+    config,
+    symbol: str = "XAUUSD",
+    point_size: float | None = None,
+) -> dict[str, float]:
     """Compute entry, SL, TP, and R-R ratio.
 
     pip_value is symbol-dependent:
@@ -223,26 +321,30 @@ def _compute_sl_tp(price: float, action: str, config, symbol: str = "XAUUSD") ->
     """
     sl_pips = config.stop_loss_pips
     tp_pips = config.take_profit_pips
-    # Resolve pip_value per symbol
-    sym_upper = symbol.upper()
-    if "XAU" in sym_upper or "GOLD" in sym_upper:
-        pip_value = 0.1
-    elif "JPY" in sym_upper:
-        pip_value = 0.01
+    # MT5 convention used here: one pip is ten broker points.
+    if point_size is not None and point_size > 0:
+        pip_value = point_size * 10
+        digits = max(0, -Decimal(str(point_size)).normalize().as_tuple().exponent)
     else:
-        pip_value = 0.0001
+        sym_upper = symbol.upper()
+        if "XAU" in sym_upper or "GOLD" in sym_upper:
+            pip_value, digits = 0.1, 2
+        elif "JPY" in sym_upper:
+            pip_value, digits = 0.01, 3
+        else:
+            pip_value, digits = 0.0001, 5
     if action == "buy":
         entry = price
-        sl = round(price - sl_pips * pip_value, 2)
-        tp = round(price + tp_pips * pip_value, 2)
+        sl = round(price - sl_pips * pip_value, digits)
+        tp = round(price + tp_pips * pip_value, digits)
     elif action == "sell":
         entry = price
-        sl = round(price + sl_pips * pip_value, 2)
-        tp = round(price - tp_pips * pip_value, 2)
+        sl = round(price + sl_pips * pip_value, digits)
+        tp = round(price - tp_pips * pip_value, digits)
     else:
         entry = price
-        sl = round(price - sl_pips * pip_value, 2)
-        tp = round(price + tp_pips * pip_value, 2)
+        sl = round(price - sl_pips * pip_value, digits)
+        tp = round(price + tp_pips * pip_value, digits)
     rr = round(tp_pips / sl_pips, 1) if sl_pips > 0 else 0.0
     return {"entry": entry, "sl": sl, "tp": tp, "rr": rr}
 
@@ -446,6 +548,8 @@ class TradingEngine:
         bars: list[PriceBar] = []
         candle_history: list = []
         entry_time: datetime | None = None  # Track entry timestamp for timeout exit
+        missing_entry_time_warned = False
+        protection_repair_failures: set[str] = set()
         last_account_refresh = time.monotonic()
 
         def refresh_account(force: bool = False) -> None:
@@ -467,21 +571,6 @@ class TradingEngine:
             iteration += 1
 
             try:
-                # 0. Check trading session (skip if outside London/NY)
-                if strategy.config.session_filter_enabled:
-                    now_h = datetime.now().hour
-                    now_m = datetime.now().minute
-                    current_minutes = now_h * 60 + now_m
-                    london_start = strategy.config.session_london_start * 60
-                    london_end = strategy.config.session_london_end * 60
-                    ny_start = strategy.config.session_ny_start * 60 + 30
-                    ny_end = strategy.config.session_ny_end * 60
-                    in_session = (london_start <= current_minutes <= london_end or
-                                  ny_start <= current_minutes <= ny_end)
-                    if not in_session:
-                        self._put(f"signal:outside trading session (WIB {now_h:02d}:{now_m:02d})")
-                        # Still fetch but don't trade
-
                 # 1. Fetch quote
                 quote = self.broker.get_quote(mapped_symbol)
 
@@ -494,38 +583,21 @@ class TradingEngine:
                         refresh_account()
                     continue
 
-                # 1b. News filter — pause near high-impact events
+                # 1b. Compute fail-closed entry gates. Existing positions still
+                # pass through the loop so exits are always managed.
+                news_event = None
                 if strategy.config.news_filter_enabled:
                     news_event = get_upcoming_event(buffer_minutes=strategy.config.news_filter_minutes)
-                    if news_event:
-                        name = news_event["name"]
-                        phase = news_event["phase"]
-                        sec = news_event["seconds_until"]
-                        log.info(f"News filter: {name} ({phase}) — pausing {abs(sec)}s")
-                        self._put(f"signal:news filter — {name} ({phase})")
-                        dd.add_log(f"NEWS: {name} ({phase}) — paused")
-                        notify_web()
-                        # Wait until news passes
-                        wait_sec = min(abs(sec) + 60, 300)
-                        for _ in range(wait_sec // 5):
-                            if self._stop.is_set():
-                                break
-                            time.sleep(5)
-                            refresh_account()
-                        continue
-
-                # 1c. Spread check — abort if spread > max allowed
-                max_points = strategy.config.max_spread_points
-                if quote.spread > max_points:
-                    log.info(f"Spread {quote.spread:.1f}pts > max {max_points:.0f}pts — skipping")
-                    self._put(f"signal:spread {quote.spread:.1f}pts too high")
-                    # Wait and retry
-                    for _ in range(6):
-                        if self._stop.is_set():
-                            break
-                        time.sleep(10)
-                        refresh_account()
-                    continue
+                entry_blocks = _entry_safety_blocks(
+                    strategy.config,
+                    quote,
+                    supports_attached_protection=self.broker.supports_attached_protection,
+                    news_event=news_event,
+                )
+                if entry_blocks:
+                    block_summary = "; ".join(entry_blocks)
+                    log.info(f"New entries blocked: {block_summary}")
+                    self._put(f"signal:entry blocked — {block_summary}")
 
                 # 2. Fetch candles from broker (configurable timeframe)
                 try:
@@ -556,6 +628,61 @@ class TradingEngine:
                 signal = strategy.generate(symbol, bars, quote)
                 positions = self.broker.get_positions(mapped_symbol)
                 has_pos = len(positions) > 0
+                if has_pos and entry_time is None:
+                    entry_time = _position_entry_time(positions[0])
+                    if entry_time is not None:
+                        missing_entry_time_warned = False
+                        dd.update(entry_time=entry_time.isoformat())
+                        log.info(
+                            f"Recovered position {positions[0].ticket} entry time "
+                            f"{entry_time.isoformat()}"
+                        )
+                    elif not missing_entry_time_warned:
+                        log.warning(
+                            f"Position {positions[0].ticket} has no broker entry time; "
+                            "price SL/TP remains active but timeout recovery is unavailable"
+                        )
+                        missing_entry_time_warned = True
+                elif not has_pos:
+                    if entry_time is not None:
+                        entry_time = None
+                        dd.update(entry_time=None)
+                    missing_entry_time_warned = False
+
+                if has_pos and self.broker.supports_attached_protection:
+                    pos = positions[0]
+                    side = (getattr(pos, "side", "") or "buy").lower()
+                    needs_sl = strategy.config.stop_loss_pips > 0 and pos.stop_loss is None
+                    needs_tp = strategy.config.take_profit_pips > 0 and pos.take_profit is None
+                    if side == "buy" and (needs_sl or needs_tp):
+                        desired = _compute_sl_tp(
+                            pos.avg_price,
+                            "buy",
+                            strategy.config,
+                            symbol=symbol,
+                            point_size=quote.point_size,
+                        )
+                        protection_result = self.broker.set_position_protection(
+                            pos.ticket,
+                            desired["sl"] if needs_sl else pos.stop_loss,
+                            desired["tp"] if needs_tp else pos.take_profit,
+                        )
+                        if (
+                            protection_result is not None
+                            and protection_result.status == OrderStatus.FILLED
+                        ):
+                            protection_repair_failures.discard(pos.ticket)
+                            log.info(f"Recovered broker-side SL/TP for position {pos.ticket}")
+                            dd.add_log(f"PROTECTION RESTORED: position {pos.ticket}")
+                        elif pos.ticket not in protection_repair_failures:
+                            detail = _order_result_detail(protection_result, pos.quantity)
+                            message = f"Failed to restore SL/TP for position {pos.ticket}: {detail}"
+                            protection_repair_failures.add(pos.ticket)
+                            self._put(f"error:{message}")
+                            log.error(message)
+                            dd.add_log(f"ERROR: {message}")
+                            tg.send_error(message)
+
                 dashboard_positions = []
                 for p in positions:
                     side = (getattr(p, "side", "") or "buy").upper()
@@ -574,6 +701,9 @@ class TradingEngine:
                         "current": round(quote.last, 2),
                         "pnl": round(p.unrealized_pnl, 2),
                         "pnl_pips": round(pnl_pips, 1),
+                        "opened_at": p.opened_at.isoformat() if p.opened_at else None,
+                        "sl": p.stop_loss,
+                        "tp": p.take_profit,
                     })
                 dd.update(open_positions=dashboard_positions)
 
@@ -581,7 +711,7 @@ class TradingEngine:
                 # Cek M5 EMA 9/21 — reject only if EMAs are >1% divergent
                 tf_confirmed = True
                 tf_reason = ""
-                if not has_pos and signal.action in ("buy", "sell"):
+                if not has_pos and not entry_blocks and signal.action in ("buy", "sell"):
                     try:
                         tf_candles = self.broker.fetch_candles(mapped_symbol, "5m", 25)
                         if len(tf_candles) >= 15:
@@ -613,7 +743,13 @@ class TradingEngine:
                 session_label = _current_session_label(sessions)
                 senti = _compute_sentiment(closes=[b.close for b in bars], highs=[b.high for b in bars], lows=[b.low for b in bars])
                 vol = _compute_volatility([b.close for b in bars])
-                sltp = _compute_sl_tp(quote.last, signal.action, strategy.config, symbol=symbol)
+                sltp = _compute_sl_tp(
+                    quote.last,
+                    signal.action,
+                    strategy.config,
+                    symbol=symbol,
+                    point_size=quote.point_size,
+                )
                 macro = get_macro_sentiment()
 
                 # Update dashboard radar data
@@ -638,10 +774,17 @@ class TradingEngine:
                 # 5. Execute + notify
                 qty = 0.01
                 signal_msg = ""
+                position_closed_this_cycle = False
 
                 if signal.action == "buy" and not has_pos:
+                    if entry_blocks:
+                        reason = "; ".join(entry_blocks)
+                        signal_msg = f"ENTRY BLOCKED BUY {mapped_symbol} @ {quote.last:.2f} | {reason}"
+                        self._put(f"signal:{signal_msg}")
+                        log.info(f"signal:{signal_msg}")
+                        dd.add_log(f"ENTRY BLOCKED: {reason}")
                     # ── Higher TF confirmation filter ────────────────────────
-                    if not tf_confirmed:
+                    elif not tf_confirmed:
                         signal_msg = f"TF REJECTED BUY {mapped_symbol} @ {quote.last:.2f} | {tf_reason}"
                         self._put(f"signal:{signal_msg}")
                         log.info(f"signal:{signal_msg}")
@@ -662,23 +805,39 @@ class TradingEngine:
                             qty = max(0.05, min(max_by_equity, bal * 0.05 / quote.last))
                         if qty <= 0:
                             qty = 0.01
-                        result = self.broker.place_order(mapped_symbol, OrderSide.BUY, qty)
+                        entry_sltp = _compute_sl_tp(
+                            quote.ask,
+                            "buy",
+                            strategy.config,
+                            symbol=symbol,
+                            point_size=quote.point_size,
+                        )
+                        result = self.broker.place_order(
+                            mapped_symbol,
+                            OrderSide.BUY,
+                            qty,
+                            stop_loss=entry_sltp["sl"] if strategy.config.stop_loss_pips > 0 else None,
+                            take_profit=entry_sltp["tp"] if strategy.config.take_profit_pips > 0 else None,
+                        )
 
-                        if result.status == OrderStatus.FILLED:
+                        if result is not None and result.status == OrderStatus.FILLED and result.filled_qty > 0:
                             signal_msg = f"BOUGHT {qty:.4f} {mapped_symbol} @ {quote.last:.2f} | {signal.reason}"
                             self._put(f"signal:{signal_msg}")
                             log.info(f"signal:{signal_msg}")
                             dd.add_trade("BUY", mapped_symbol, quote.last, qty, signal.reason)
                             dd.add_log(f"BOUGHT {qty:.4f} {mapped_symbol} @ {quote.last:.2f}")
                             tg.send_signal("buy", mapped_symbol, quote.last, signal.reason)
-                            entry_time = datetime.now()
+                            entry_time = result.timestamp
+                            if entry_time.tzinfo is None:
+                                entry_time = entry_time.replace(tzinfo=timezone.utc)
                             dd.update(entry_time=entry_time.isoformat(), timeout_minutes=strategy.config.timeout_exit_minutes)
                             log.info(f"[TIMEOUT] Entry tracked at {entry_time.strftime('%H:%M:%S')}, timeout={strategy.config.timeout_exit_minutes}m")
                         else:
-                            signal_msg = f"ORDER REJECTED: {result.message} | qty={qty:.4f} @ {quote.last:.2f}"
+                            detail = _order_result_detail(result, qty)
+                            signal_msg = f"ORDER REJECTED: {detail} @ {quote.last:.2f}"
                             self._put(f"signal:{signal_msg}")
                             log.warning(f"signal:{signal_msg}")
-                            dd.add_log(f"REJECTED: {result.message}")
+                            dd.add_log(f"REJECTED: {detail}")
 
                 elif signal.action == "sell" and has_pos:
                     # ── OPPOSITE-SIGNAL EXIT (only if in profit) ──────────────
@@ -690,14 +849,22 @@ class TradingEngine:
                     if pnl_usd > 0:
                         # In profit — close immediately (lock profit)
                         result = self.broker.close_position(pos.ticket)
-                        signal_msg = f"SOLD {mapped_symbol} @ {quote.last:.2f} P&L=${pnl_usd:+.2f} | OPPOSITE SIGNAL (profit): {signal.reason}"
-                        self._put(f"signal:{signal_msg}")
-                        log.info(f"signal:{signal_msg}")
-                        dd.add_trade("SELL (opp signal profit)", mapped_symbol, quote.last, pos.quantity, f"Opp profit: {signal.reason}", pnl_usd)
-                        dd.add_log(f"SOLD {mapped_symbol} @ {quote.last:.2f} P&L=${pnl_usd:+.2f} (opp signal profit)")
-                        tg.send_signal("sell", mapped_symbol, quote.last, f"Opposite signal (profit): {signal.reason}", pnl=pnl_usd)
-                        entry_time = None
-                        dd.update(entry_time=None)
+                        if _is_close_complete(result, pos.quantity):
+                            signal_msg = f"SOLD {mapped_symbol} @ {quote.last:.2f} P&L=${pnl_usd:+.2f} | OPPOSITE SIGNAL (profit): {signal.reason}"
+                            self._put(f"signal:{signal_msg}")
+                            log.info(f"signal:{signal_msg}")
+                            dd.add_trade("SELL (opp signal profit)", mapped_symbol, quote.last, pos.quantity, f"Opp profit: {signal.reason}", pnl_usd)
+                            dd.add_log(f"SOLD {mapped_symbol} @ {quote.last:.2f} P&L=${pnl_usd:+.2f} (opp signal profit)")
+                            tg.send_signal("sell", mapped_symbol, quote.last, f"Opposite signal (profit): {signal.reason}", pnl=pnl_usd)
+                            entry_time = None
+                            has_pos = False
+                            position_closed_this_cycle = True
+                            dd.update(entry_time=None)
+                        else:
+                            signal_msg = f"CLOSE INCOMPLETE {mapped_symbol} | {_order_result_detail(result, pos.quantity)}"
+                            self._put(f"error:{signal_msg}")
+                            log.error(signal_msg)
+                            dd.add_log(f"ERROR: {signal_msg}")
                     else:
                         # In loss — DO NOT close opposite signal, let SL handle it
                         # Fall through to forced_exit logic below
@@ -706,15 +873,11 @@ class TradingEngine:
                         log.info(f"signal:{signal_msg}")
                         dd.add_log(f"OPP SIGNAL HOLD (loss ${pnl_usd:+.2f}) — letting SL handle")
 
-                # ── Skip forced_exit if position was already closed by opposite-signal exit ──
-                if has_pos and entry_time is None:
-                    has_pos = False
-
                 # ── ALWAYS check forced exit (SL/TP/timeout) for existing positions ──
                 forced_exit = None
-                if has_pos:
+                if has_pos and not position_closed_this_cycle:
                     pos = positions[0]
-                    now = datetime.now()
+                    now = datetime.now(timezone.utc)
                     forced_exit = risk_mgr.forced_exit_reason(
                         pos.avg_price, quote.last,
                         entry_time=entry_time,
@@ -723,28 +886,40 @@ class TradingEngine:
 
                 if forced_exit:
                     result = self.broker.close_position(pos.ticket)
-                    pnl_price_diff = quote.last - pos.avg_price if pos.avg_price else 0.0
                     pnl_usd = _compute_dollar_pnl(symbol, pos.avg_price, quote.last, pos.quantity)
-                    signal_msg = f"CLOSED {mapped_symbol} @ {quote.last:.2f} P&L=${pnl_usd:+.2f} | {forced_exit}"
-                    self._put(f"signal:{signal_msg}")
-                    log.info(f"signal:{signal_msg}")
-                    if "timeout" in forced_exit:
-                        trade_type = "SELL (timeout)"
-                    elif "lock profit" in forced_exit:
-                        trade_type = "SELL (lock profit)"
+                    if _is_close_complete(result, pos.quantity):
+                        signal_msg = f"CLOSED {mapped_symbol} @ {quote.last:.2f} P&L=${pnl_usd:+.2f} | {forced_exit}"
+                        self._put(f"signal:{signal_msg}")
+                        log.info(f"signal:{signal_msg}")
+                        if "timeout" in forced_exit:
+                            trade_type = "SELL (timeout)"
+                        elif "lock profit" in forced_exit:
+                            trade_type = "SELL (lock profit)"
+                        else:
+                            trade_type = "SELL (SL/TP)"
+                        dd.add_trade(trade_type, mapped_symbol, quote.last, pos.quantity, forced_exit, pnl_usd)
+                        dd.add_log(f"CLOSED {mapped_symbol} @ {quote.last:.2f} P&L=${pnl_usd:+.2f} ({forced_exit})")
+                        tg.send_signal("sell", mapped_symbol, quote.last, forced_exit, pnl=pnl_usd)
+                        entry_time = None
+                        has_pos = False
+                        dd.update(entry_time=None)
                     else:
-                        trade_type = "SELL (SL/TP)"
-                    dd.add_trade(trade_type, mapped_symbol, quote.last, pos.quantity, forced_exit, pnl_usd)
-                    dd.add_log(f"CLOSED {mapped_symbol} @ {quote.last:.2f} P&L=${pnl_usd:+.2f} ({forced_exit})")
-                    tg.send_signal("sell", mapped_symbol, quote.last, forced_exit, pnl=pnl_usd)
-                    entry_time = None
-                    dd.update(entry_time=None)
+                        signal_msg = (
+                            f"SAFETY CLOSE INCOMPLETE {mapped_symbol} ({forced_exit}) | "
+                            f"{_order_result_detail(result, pos.quantity)}"
+                        )
+                        self._put(f"error:{signal_msg}")
+                        log.error(signal_msg)
+                        dd.add_log(f"ERROR: {signal_msg}")
                 elif has_pos:
                     hold_label = "HODL"
                     signal_msg = f"{hold_label} {mapped_symbol} @ {quote.last:.2f}  sc={signal.confidence:.3f}  [{signal.reason}]"
                     self._put(f"signal:{signal_msg}")
                     log.info(f"signal:{signal_msg}")
                     dd.add_log(f"{hold_label} {mapped_symbol} @ {quote.last:.2f} sc={signal.confidence:.3f}")
+                elif not signal_msg:
+                    signal_msg = f"HOLD {mapped_symbol} @ {quote.last:.2f} sc={signal.confidence:.3f} [{signal.reason}]"
+                    self._put(f"signal:{signal_msg}")
 
                 # Update dashboard data with latest signal (msg always defined now)
                 dd.update(

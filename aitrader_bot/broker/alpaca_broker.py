@@ -26,6 +26,37 @@ from .base import (
 )
 
 
+def _order_value(order, name: str, default=None):
+    if isinstance(order, dict):
+        return order.get(name, default)
+    return getattr(order, name, default)
+
+
+def _map_alpaca_order_status(status, filled_qty: float, requested_qty: float) -> OrderStatus:
+    filled_qty = abs(filled_qty)
+    requested_qty = abs(requested_qty)
+    value = getattr(status, "value", status)
+    value = str(value or "").lower()
+    if value == "filled" or (requested_qty > 0 and filled_qty >= requested_qty):
+        return OrderStatus.FILLED
+    if value == "partially_filled" or filled_qty > 0:
+        return OrderStatus.PARTIAL
+    if value == "rejected":
+        return OrderStatus.REJECTED
+    if value in {"canceled", "expired", "done_for_day", "stopped", "suspended"}:
+        return OrderStatus.CANCELLED
+    return OrderStatus.PENDING
+
+
+def _order_timestamp(order, default: datetime) -> datetime:
+    created_at = _order_value(order, "created_at")
+    if not isinstance(created_at, datetime):
+        return default
+    if created_at.tzinfo is None:
+        return created_at.replace(tzinfo=timezone.utc)
+    return created_at
+
+
 class AlpacaBroker(BaseBroker):
     """Broker adapter for Alpaca — US stocks & ETFs."""
 
@@ -126,6 +157,7 @@ class AlpacaBroker(BaseBroker):
                 if q.timestamp.tzinfo is None
                 else q.timestamp,
                 raw={"bid": q.bid_price, "ask": q.ask_price, "bid_size": q.bid_size, "ask_size": q.ask_size},
+                point_size=0.01,
             )
         except Exception:
             return None
@@ -204,10 +236,20 @@ class AlpacaBroker(BaseBroker):
         quantity: float,
         order_type: str = "market",
         price: float | None = None,
+        stop_loss: float | None = None,
+        take_profit: float | None = None,
     ) -> OrderResult:
         self._ensure_connected()
         mapped = self.get_symbol_map(symbol)
         now = datetime.now(timezone.utc)
+
+        if stop_loss is not None or take_profit is not None:
+            return OrderResult(
+                ExchangeType.ALPACA, "", OrderStatus.REJECTED,
+                mapped, side, quantity, 0.0, 0.0, 0.0,
+                "attached protective orders are not implemented by the Alpaca adapter",
+                now,
+            )
 
         try:
             from alpaca.trading.requests import LimitOrderRequest, MarketOrderRequest
@@ -238,13 +280,16 @@ class AlpacaBroker(BaseBroker):
                 )
 
             order = self._trading_client.submit_order(order_data=order_data)
-            filled_qty = float(order.filled_qty or 0)
-            status = OrderStatus.FILLED if filled_qty >= quantity else OrderStatus.PENDING
-            avg_price = float(order.filled_avg_price or 0)
+            filled_qty = float(_order_value(order, "filled_qty", 0) or 0)
+            status = _map_alpaca_order_status(
+                _order_value(order, "status"), filled_qty, quantity,
+            )
+            avg_price = float(_order_value(order, "filled_avg_price", 0) or 0)
+            created_at = _order_timestamp(order, now)
 
             return OrderResult(
                 exchange=ExchangeType.ALPACA,
-                order_id=str(order.id),
+                order_id=str(_order_value(order, "id", "")),
                 status=status,
                 symbol=mapped,
                 side=side,
@@ -253,9 +298,7 @@ class AlpacaBroker(BaseBroker):
                 price=price or avg_price,
                 avg_fill_price=avg_price,
                 message=f"{alpaca_side.value} {quantity} {mapped} @ {avg_price or price}",
-                timestamp=order.created_at.replace(tzinfo=timezone.utc)
-                if order.created_at and order.created_at.tzinfo is None
-                else (order.created_at or now),
+                timestamp=created_at,
             )
 
         except Exception as e:
@@ -318,18 +361,25 @@ class AlpacaBroker(BaseBroker):
 
             order = self._trading_client.close_position(target.symbol)
             now = datetime.now(timezone.utc)
+            filled_qty = float(_order_value(order, "filled_qty", 0) or 0)
+            requested_qty = abs(target.quantity)
+            status = _map_alpaca_order_status(
+                _order_value(order, "status"), filled_qty, requested_qty,
+            )
+            avg_price = float(_order_value(order, "filled_avg_price", 0) or 0)
+            created_at = _order_timestamp(order, now)
             return OrderResult(
                 exchange=ExchangeType.ALPACA,
-                order_id=str(order.get("id", "")),
-                status=OrderStatus.FILLED,
+                order_id=str(_order_value(order, "id", "")),
+                status=status,
                 symbol=target.symbol,
                 side=OrderSide.SELL,
-                quantity=target.quantity,
-                filled_qty=target.quantity,
+                quantity=requested_qty,
+                filled_qty=abs(filled_qty),
                 price=target.current_price,
-                avg_fill_price=target.current_price,
-                message=f"close {target.symbol} @ {target.current_price}",
-                timestamp=now,
+                avg_fill_price=avg_price,
+                message=f"close {target.symbol} status={status.value} filled={filled_qty}",
+                timestamp=created_at,
             )
 
         except Exception as e:

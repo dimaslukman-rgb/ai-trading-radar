@@ -18,7 +18,7 @@ from pathlib import Path
 
 from .ai_trader_client import AiTraderClient
 from .backtest import run_backtest
-from .broker import ExchangeType, OrderSide, create_broker
+from .broker import ExchangeType, OrderSide, OrderStatus, create_broker
 from .config import load_config
 from .data import fetch_yahoo_chart, read_csv_prices
 from .models import PriceBar
@@ -142,6 +142,14 @@ def _cmd_signal(args: argparse.Namespace) -> None:
 # ══════════════════════════════════════════════════════════════════════════
 
 def _cmd_scalp(args: argparse.Namespace) -> None:
+    from .app.engine import (
+        _compute_sl_tp,
+        _entry_safety_blocks,
+        _is_close_complete,
+        _order_result_detail,
+    )
+    from .app.news_filter import get_upcoming_event
+
     config = load_config(args.config)
     strategy = ScalpingStrategy(config.scalping)
 
@@ -195,6 +203,18 @@ def _cmd_scalp(args: argparse.Namespace) -> None:
             if quote is None:
                 print(f"[{iteration}] [...waiting...] No quote yet")
             else:
+                news_event = None
+                if config.scalping.news_filter_enabled:
+                    news_event = get_upcoming_event(
+                        buffer_minutes=config.scalping.news_filter_minutes,
+                    )
+                entry_blocks = _entry_safety_blocks(
+                    config.scalping,
+                    quote,
+                    supports_attached_protection=broker.supports_attached_protection,
+                    news_event=news_event,
+                )
+
                 # Try to fetch candles from broker
                 try:
                     candle_history = broker.fetch_candles(mapped_symbol, "5m", 50)
@@ -223,14 +243,57 @@ def _cmd_scalp(args: argparse.Namespace) -> None:
                 positions = broker.get_positions(mapped_symbol)
                 has_pos = len(positions) > 0
 
+                if has_pos and broker.supports_attached_protection:
+                    pos = positions[0]
+                    side = (getattr(pos, "side", "") or "buy").lower()
+                    needs_sl = config.scalping.stop_loss_pips > 0 and pos.stop_loss is None
+                    needs_tp = config.scalping.take_profit_pips > 0 and pos.take_profit is None
+                    if side == "buy" and (needs_sl or needs_tp):
+                        desired = _compute_sl_tp(
+                            pos.avg_price,
+                            "buy",
+                            config.scalping,
+                            symbol=symbol,
+                            point_size=quote.point_size,
+                        )
+                        repair = broker.set_position_protection(
+                            pos.ticket,
+                            desired["sl"] if needs_sl else pos.stop_loss,
+                            desired["tp"] if needs_tp else pos.take_profit,
+                        )
+                        if repair.status != OrderStatus.FILLED:
+                            print(f"[{iteration}] [SAFETY] {_order_result_detail(repair, pos.quantity)}")
+
                 # Execute
                 qty = 0.01
                 if signal.action == "buy" and not has_pos:
-                    result = broker.place_order(mapped_symbol, OrderSide.BUY, qty)
-                    msg = f"[BUY]  {mapped_symbol} @ {quote.last:.2f} | {result.message}"
+                    if entry_blocks:
+                        msg = f"[ENTRY BLOCKED] {mapped_symbol} | {'; '.join(entry_blocks)}"
+                    else:
+                        protection = _compute_sl_tp(
+                            quote.ask,
+                            "buy",
+                            config.scalping,
+                            symbol=symbol,
+                            point_size=quote.point_size,
+                        )
+                        result = broker.place_order(
+                            mapped_symbol,
+                            OrderSide.BUY,
+                            qty,
+                            stop_loss=protection["sl"] if config.scalping.stop_loss_pips > 0 else None,
+                            take_profit=protection["tp"] if config.scalping.take_profit_pips > 0 else None,
+                        )
+                        if result.status == OrderStatus.FILLED and result.filled_qty > 0:
+                            msg = f"[BUY]  {mapped_symbol} @ {quote.last:.2f} | {result.message}"
+                        else:
+                            msg = f"[ORDER REJECTED] {_order_result_detail(result, qty)}"
                 elif signal.action == "sell" and has_pos:
                     result = broker.close_position(positions[0].ticket)
-                    msg = f"[SELL] {mapped_symbol} @ {quote.last:.2f} | {result.message}"
+                    if _is_close_complete(result, positions[0].quantity):
+                        msg = f"[SELL] {mapped_symbol} @ {quote.last:.2f} | {result.message}"
+                    else:
+                        msg = f"[CLOSE INCOMPLETE] {_order_result_detail(result, positions[0].quantity)}"
                 else:
                     status = "HODL" if has_pos else "HOLD"
                     msg = f"[{status}] {mapped_symbol} @ {quote.last:.2f}  sc={signal.confidence:.3f}  [{signal.reason}]"
