@@ -49,6 +49,14 @@ class PaperBroker(BaseBroker):
         return True
 
     @property
+    def supports_short_positions(self) -> bool:
+        return True
+
+    @property
+    def supports_multiple_positions(self) -> bool:
+        return True
+
+    @property
     def is_connected(self) -> bool:
         return self._connected
 
@@ -64,10 +72,11 @@ class PaperBroker(BaseBroker):
     # ── Account ────────────────────────────────────────────────────────
 
     def get_account(self) -> AccountInfo:
-        equity = self._cash + sum(
-            pos.quantity * self._last_price.get(pos.symbol, pos.avg_price)
-            for pos in self._positions.values()
-        )
+        equity = self._cash
+        for pos in self._positions.values():
+            current = self._last_price.get(pos.symbol, pos.avg_price)
+            market_value = pos.quantity * current
+            equity += market_value if pos.side != "sell" else -market_value
         return AccountInfo(
             exchange=ExchangeType.PAPER,
             balance=round(self._cash, 2),
@@ -137,6 +146,12 @@ class PaperBroker(BaseBroker):
                 symbol, side, quantity, 0.0, 0.0, 0.0,
                 f"no price for {symbol}", now,
             )
+        if quantity <= 0:
+            return OrderResult(
+                ExchangeType.PAPER, "", OrderStatus.REJECTED,
+                symbol, side, quantity, 0.0, fill_price, 0.0,
+                "quantity must be positive", now,
+            )
 
         if side == OrderSide.BUY:
             if stop_loss is not None and stop_loss >= fill_price:
@@ -151,81 +166,53 @@ class PaperBroker(BaseBroker):
                     symbol, side, quantity, 0.0, 0.0, 0.0,
                     "buy take profit must be above entry price", now,
                 )
-            cost = quantity * fill_price
-            if cost > self._cash:
+        else:
+            if stop_loss is not None and stop_loss <= fill_price:
                 return OrderResult(
                     ExchangeType.PAPER, "", OrderStatus.REJECTED,
                     symbol, side, quantity, 0.0, 0.0, 0.0,
-                    "insufficient cash", now,
+                    "sell stop loss must be above entry price", now,
                 )
-
-            # Add or increase position
-            existing = self._positions.get(symbol)
-            if existing:
-                new_qty = existing.quantity + quantity
-                new_avg = ((existing.avg_price * existing.quantity) + cost) / new_qty
-                self._positions[symbol] = PositionInfo(
-                    symbol=symbol,
-                    exchange=ExchangeType.PAPER,
-                    quantity=new_qty,
-                    avg_price=new_avg,
-                    current_price=fill_price,
-                    unrealized_pnl=0.0,
-                    ticket=existing.ticket,
-                    side=existing.side or "buy",
-                    opened_at=existing.opened_at or now,
-                    stop_loss=stop_loss if stop_loss is not None else existing.stop_loss,
-                    take_profit=take_profit if take_profit is not None else existing.take_profit,
-                )
-            else:
-                self._positions[symbol] = PositionInfo(
-                    symbol=symbol,
-                    exchange=ExchangeType.PAPER,
-                    quantity=quantity,
-                    avg_price=fill_price,
-                    current_price=fill_price,
-                    unrealized_pnl=0.0,
-                    ticket=str(uuid.uuid4()),
-                    side="buy",
-                    opened_at=now,
-                    stop_loss=stop_loss,
-                    take_profit=take_profit,
-                )
-            self._cash -= cost
-
-        else:  # SELL
-            existing = self._positions.get(symbol)
-            if not existing:
+            if take_profit is not None and take_profit >= fill_price:
                 return OrderResult(
                     ExchangeType.PAPER, "", OrderStatus.REJECTED,
                     symbol, side, quantity, 0.0, 0.0, 0.0,
-                    "no position to sell", now,
-                )
-            qty = min(quantity, existing.quantity)
-            pnl = qty * (fill_price - existing.avg_price)
-            self._cash += qty * fill_price
-            remaining = existing.quantity - qty
-            if remaining <= 1e-12:
-                del self._positions[symbol]
-            else:
-                self._positions[symbol] = PositionInfo(
-                    symbol=symbol,
-                    exchange=ExchangeType.PAPER,
-                    quantity=remaining,
-                    avg_price=existing.avg_price,
-                    current_price=fill_price,
-                    unrealized_pnl=pnl,
-                    ticket=existing.ticket,
-                    side=existing.side,
-                    opened_at=existing.opened_at,
-                    stop_loss=existing.stop_loss,
-                    take_profit=existing.take_profit,
+                    "sell take profit must be below entry price", now,
                 )
 
-        order_id = str(uuid.uuid4())[:8]
+        notional = quantity * fill_price
+        account_equity = max(0.0, self.get_account().equity)
+        available = min(self._cash, account_equity) if side == OrderSide.BUY else account_equity
+        if notional > max(0.0, available):
+            return OrderResult(
+                ExchangeType.PAPER, "", OrderStatus.REJECTED,
+                symbol, side, quantity, 0.0, 0.0, 0.0,
+                "insufficient equity", now,
+            )
+
+        ticket = str(uuid.uuid4())
+        side_value = "buy" if side == OrderSide.BUY else "sell"
+        self._positions[ticket] = PositionInfo(
+            symbol=symbol,
+            exchange=ExchangeType.PAPER,
+            quantity=quantity,
+            avg_price=fill_price,
+            current_price=fill_price,
+            unrealized_pnl=0.0,
+            ticket=ticket,
+            side=side_value,
+            opened_at=now,
+            stop_loss=stop_loss,
+            take_profit=take_profit,
+        )
+        if side == OrderSide.BUY:
+            self._cash -= notional
+        else:
+            self._cash += notional
+
         result = OrderResult(
             exchange=ExchangeType.PAPER,
-            order_id=order_id,
+            order_id=ticket,
             status=OrderStatus.FILLED,
             symbol=symbol,
             side=side,
@@ -242,36 +229,21 @@ class PaperBroker(BaseBroker):
     # ── Positions ──────────────────────────────────────────────────────
 
     def get_positions(self, symbol: str | None = None) -> list[PositionInfo]:
-        if symbol:
-            pos = self._positions.get(symbol)
-            result = []
-            if pos:
-                cur = self._last_price.get(symbol, pos.avg_price)
-                result.append(PositionInfo(
-                    symbol=pos.symbol,
-                    exchange=ExchangeType.PAPER,
-                    quantity=pos.quantity,
-                    avg_price=pos.avg_price,
-                    current_price=cur,
-                    unrealized_pnl=(cur - pos.avg_price) * pos.quantity,
-                    ticket=pos.ticket,
-                    side=pos.side,
-                    opened_at=pos.opened_at,
-                    stop_loss=pos.stop_loss,
-                    take_profit=pos.take_profit,
-                ))
-            return result
-
         result = []
-        for sym, pos in self._positions.items():
-            cur = self._last_price.get(sym, pos.avg_price)
+        for pos in self._positions.values():
+            if symbol is not None and pos.symbol != symbol:
+                continue
+            cur = self._last_price.get(pos.symbol, pos.avg_price)
+            price_diff = cur - pos.avg_price
+            if pos.side == "sell":
+                price_diff *= -1
             result.append(PositionInfo(
-                symbol=sym,
+                symbol=pos.symbol,
                 exchange=ExchangeType.PAPER,
                 quantity=pos.quantity,
                 avg_price=pos.avg_price,
                 current_price=cur,
-                unrealized_pnl=(cur - pos.avg_price) * pos.quantity,
+                unrealized_pnl=price_diff * pos.quantity,
                 ticket=pos.ticket,
                 side=pos.side,
                 opened_at=pos.opened_at,
@@ -281,11 +253,31 @@ class PaperBroker(BaseBroker):
         return result
 
     def close_position(self, ticket: str) -> OrderResult:
-        for sym, pos in list(self._positions.items()):
-            if pos.ticket == ticket:
-                price = self._last_price.get(sym, pos.avg_price)
-                return self.place_order(sym, OrderSide.SELL, pos.quantity, price=price)
         now = datetime.now(timezone.utc)
+        pos = self._positions.get(ticket)
+        if pos is not None:
+            price = self._last_price.get(pos.symbol, pos.avg_price)
+            close_side = OrderSide.SELL if pos.side != "sell" else OrderSide.BUY
+            if pos.side == "sell":
+                self._cash -= pos.quantity * price
+            else:
+                self._cash += pos.quantity * price
+            del self._positions[ticket]
+            result = OrderResult(
+                ExchangeType.PAPER,
+                str(uuid.uuid4()),
+                OrderStatus.FILLED,
+                pos.symbol,
+                close_side,
+                pos.quantity,
+                pos.quantity,
+                price,
+                price,
+                f"close {pos.side} {pos.quantity:.4f} {pos.symbol} @ {price}",
+                now,
+            )
+            self._trade_log.append(result)
+            return result
         return OrderResult(
             ExchangeType.PAPER, "", OrderStatus.REJECTED,
             "", OrderSide.SELL, 0, 0.0, 0.0, 0.0,
@@ -299,24 +291,36 @@ class PaperBroker(BaseBroker):
         take_profit: float | None,
     ) -> OrderResult:
         now = datetime.now(timezone.utc)
-        for symbol, position in self._positions.items():
-            if position.ticket != ticket:
-                continue
-            current_price = self._last_price.get(symbol, position.current_price)
+        position = self._positions.get(ticket)
+        if position is not None:
+            current_price = self._last_price.get(position.symbol, position.current_price)
             if position.side in ("", "buy"):
                 if stop_loss is not None and stop_loss >= current_price:
                     return OrderResult(
                         ExchangeType.PAPER, "", OrderStatus.REJECTED,
-                        symbol, OrderSide.BUY, position.quantity, 0.0, 0.0, 0.0,
+                        position.symbol, OrderSide.BUY, position.quantity, 0.0, 0.0, 0.0,
                         "buy stop loss must be below current price", now,
                     )
                 if take_profit is not None and take_profit <= current_price:
                     return OrderResult(
                         ExchangeType.PAPER, "", OrderStatus.REJECTED,
-                        symbol, OrderSide.BUY, position.quantity, 0.0, 0.0, 0.0,
+                        position.symbol, OrderSide.BUY, position.quantity, 0.0, 0.0, 0.0,
                         "buy take profit must be above current price", now,
                     )
-            self._positions[symbol] = replace(
+            else:
+                if stop_loss is not None and stop_loss <= current_price:
+                    return OrderResult(
+                        ExchangeType.PAPER, "", OrderStatus.REJECTED,
+                        position.symbol, OrderSide.SELL, position.quantity, 0.0, 0.0, 0.0,
+                        "sell stop loss must be above current price", now,
+                    )
+                if take_profit is not None and take_profit >= current_price:
+                    return OrderResult(
+                        ExchangeType.PAPER, "", OrderStatus.REJECTED,
+                        position.symbol, OrderSide.SELL, position.quantity, 0.0, 0.0, 0.0,
+                        "sell take profit must be below current price", now,
+                    )
+            self._positions[ticket] = replace(
                 position,
                 current_price=current_price,
                 stop_loss=stop_loss,
@@ -326,7 +330,7 @@ class PaperBroker(BaseBroker):
                 ExchangeType.PAPER,
                 ticket,
                 OrderStatus.FILLED,
-                symbol,
+                position.symbol,
                 OrderSide.BUY if position.side in ("", "buy") else OrderSide.SELL,
                 position.quantity,
                 position.quantity,

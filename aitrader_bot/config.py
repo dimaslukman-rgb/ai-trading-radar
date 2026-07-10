@@ -79,6 +79,15 @@ class ScalpingConfig:
     trailing_stop_pips: float = 5.0     # lock profit at +5 pips (auto-exit)
     risk_per_trade_pct: float = 0.02    # 2% risk per trade (0.01 = 1%)
     max_trade_pct: float = 0.05         # 5% equity per trade
+    # ── Position policy ─────────────────────────────────────────────
+    allow_long_entries: bool = True
+    allow_short_entries: bool = True
+    max_open_positions: int = 1
+    max_positions_per_side: int = 1
+    allow_scale_in: bool = False
+    hedging_enabled: bool = False
+    close_on_opposite_signal: bool = True
+    opposite_exit_only_in_profit: bool = True
     # ── Trading Sessions (WIB = UTC+7) ──────────────────────────────
     session_filter_enabled: bool = True
     session_london_start: int = 14      # 14:00 WIB

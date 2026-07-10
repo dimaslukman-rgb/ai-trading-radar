@@ -78,6 +78,21 @@ class Mt5Broker(BaseBroker):
         return True
 
     @property
+    def supports_short_positions(self) -> bool:
+        return True
+
+    @property
+    def supports_multiple_positions(self) -> bool:
+        if not self.is_connected:
+            return False
+        try:
+            account = self._mt5.account_info()
+            hedging_mode = getattr(self._mt5, "ACCOUNT_MARGIN_MODE_RETAIL_HEDGING", 2)
+            return account is not None and account.margin_mode == hedging_mode
+        except Exception:
+            return False
+
+    @property
     def is_connected(self) -> bool:
         return self._connected and self._mt5 is not None
 
@@ -502,12 +517,17 @@ class Mt5Broker(BaseBroker):
             if target.type == self._mt5.ORDER_TYPE_BUY
             else self._mt5.ORDER_TYPE_BUY
         )
+        result_side = (
+            OrderSide.SELL
+            if close_side == self._mt5.ORDER_TYPE_SELL
+            else OrderSide.BUY
+        )
         tick = self._mt5.symbol_info_tick(target.symbol)
         if tick is None:
             now = datetime.now(timezone.utc)
             return OrderResult(
                 ExchangeType.MT5, "", OrderStatus.REJECTED,
-                target.symbol, OrderSide.SELL, 0, 0.0, 0.0, 0.0,
+                target.symbol, result_side, 0, 0.0, 0.0, 0.0,
                 f"no tick for {target.symbol}", now,
             )
         close_price = tick.bid if close_side == self._mt5.ORDER_TYPE_SELL else tick.ask
@@ -533,7 +553,7 @@ class Mt5Broker(BaseBroker):
             code = getattr(check, "retcode", "none")
             return OrderResult(
                 ExchangeType.MT5, "", OrderStatus.REJECTED,
-                target.symbol, OrderSide.SELL, 0, 0.0, 0.0, 0.0,
+                target.symbol, result_side, 0, 0.0, 0.0, 0.0,
                 f"close check gagal (code {code})", now,
             )
 
@@ -544,7 +564,7 @@ class Mt5Broker(BaseBroker):
             code = getattr(result, "retcode", "none")
             return OrderResult(
                 ExchangeType.MT5, "", OrderStatus.REJECTED,
-                target.symbol, OrderSide.SELL, 0, 0.0, 0.0, 0.0,
+                target.symbol, result_side, 0, 0.0, 0.0, 0.0,
                 f"close gagal (code {code})", now,
             )
 
@@ -553,7 +573,7 @@ class Mt5Broker(BaseBroker):
             order_id=str(result.order),
             status=status,
             symbol=target.symbol,
-            side=OrderSide.SELL,
+            side=result_side,
             quantity=float(target.volume),
             filled_qty=float(result.volume or target.volume),
             price=close_price,

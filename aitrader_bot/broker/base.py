@@ -137,6 +137,15 @@ class BaseBroker(ABC):
         """Whether entry orders can atomically attach broker-side SL/TP."""
         return False
 
+    @property
+    def supports_short_positions(self) -> bool:
+        return False
+
+    @property
+    def supports_multiple_positions(self) -> bool:
+        """Whether multiple independent tickets can coexist for one symbol."""
+        return False
+
     @abstractmethod
     def connect(self) -> bool:
         """Connect to the exchange/broker."""

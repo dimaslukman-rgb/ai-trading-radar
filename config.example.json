@@ -29,7 +29,15 @@
     "take_profit_pips": 15.0,
     "trailing_stop_pips": 5.0,
     "risk_per_trade_pct": 0.02,
-    "max_trade_pct": 0.05
+    "max_trade_pct": 0.05,
+    "allow_long_entries": true,
+    "allow_short_entries": true,
+    "max_open_positions": 1,
+    "max_positions_per_side": 1,
+    "allow_scale_in": false,
+    "hedging_enabled": false,
+    "close_on_opposite_signal": true,
+    "opposite_exit_only_in_profit": true
   },
   "risk": {
     "initial_cash": 10000,

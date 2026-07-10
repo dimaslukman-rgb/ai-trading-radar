@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+import io
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -25,6 +27,7 @@ from aitrader_bot.broker.base import OrderResult, PositionInfo, Quote
 from aitrader_bot.broker.mt5_broker import Mt5Broker, _mt5_order_status
 from aitrader_bot.broker.alpaca_broker import AlpacaBroker, _map_alpaca_order_status
 from aitrader_bot.config import ScalpingConfig
+from aitrader_bot.cli import _cmd_scalp
 from aitrader_bot.models import Signal
 
 
@@ -176,6 +179,7 @@ class PositionRecoveryTests(unittest.TestCase):
             unrealized_pl="1",
             unrealized_plpc="0.005",
             asset_id="asset-1",
+            side="long",
         )
         close_order = SimpleNamespace(
             id="order-1",
@@ -195,6 +199,9 @@ class PositionRecoveryTests(unittest.TestCase):
         self.assertEqual(result.status, OrderStatus.PENDING)
         self.assertEqual(result.filled_qty, 0.0)
         self.assertFalse(_is_close_complete(result, 1.0))
+        position.side = "short"
+        short_close = broker.close_position("asset-1")
+        self.assertEqual(short_close.side, OrderSide.BUY)
 
 
 class ProtectivePriceTests(unittest.TestCase):
@@ -242,11 +249,13 @@ class _FakeMt5:
     TRADE_RETCODE_PLACED = 10008
     SYMBOL_FILLING_FOK = 1
     ORDER_FILLING_FOK = 0
+    ACCOUNT_MARGIN_MODE_RETAIL_HEDGING = 2
 
     def __init__(self) -> None:
         self.last_request = None
         self.send_count = 0
         self.positions = []
+        self.margin_mode = self.ACCOUNT_MARGIN_MODE_RETAIL_HEDGING
 
     def symbol_select(self, symbol, enabled):
         return True
@@ -282,6 +291,9 @@ class _FakeMt5:
     def positions_get(self, **kwargs):
         return self.positions
 
+    def account_info(self):
+        return SimpleNamespace(margin_mode=self.margin_mode)
+
     def last_error(self):
         return (0, "ok")
 
@@ -301,6 +313,29 @@ class Mt5ProtectiveOrderTests(unittest.TestCase):
         self.assertEqual(self.transport.last_request["sl"], 3297.00)
         self.assertEqual(self.transport.last_request["tp"], 3302.00)
 
+    def test_mt5_short_entry_and_close_use_inverse_order_sides(self) -> None:
+        entry = self.broker.place_order(
+            "XAUUSD", OrderSide.SELL, 0.1, stop_loss=3303.0, take_profit=3299.0,
+        )
+        self.assertEqual(entry.status, OrderStatus.FILLED)
+        self.assertEqual(self.transport.last_request["type"], self.transport.ORDER_TYPE_SELL)
+        self.transport.positions = [SimpleNamespace(
+            symbol="XAUUSD",
+            volume=0.1,
+            price_open=3300.0,
+            price_current=3299.0,
+            profit=10.0,
+            ticket=789,
+            type=self.transport.ORDER_TYPE_SELL,
+            time=1_720_000_000,
+            sl=3303.0,
+            tp=3299.0,
+        )]
+        close = self.broker.close_position("789")
+        self.assertEqual(close.status, OrderStatus.FILLED)
+        self.assertEqual(close.side, OrderSide.BUY)
+        self.assertEqual(self.transport.last_request["type"], self.transport.ORDER_TYPE_BUY)
+
     def test_mt5_rejects_invalid_protection_before_sending(self) -> None:
         result = self.broker.place_order(
             "XAUUSD", OrderSide.BUY, 0.1, stop_loss=3301, take_profit=3302,
@@ -317,6 +352,11 @@ class Mt5ProtectiveOrderTests(unittest.TestCase):
             _mt5_order_status(self.transport, SimpleNamespace(retcode=10008)),
             OrderStatus.PENDING,
         )
+
+    def test_mt5_multiple_position_capability_follows_account_mode(self) -> None:
+        self.assertTrue(self.broker.supports_multiple_positions)
+        self.transport.margin_mode = 0
+        self.assertFalse(self.broker.supports_multiple_positions)
 
     def test_mt5_quote_and_position_expose_safety_metadata(self) -> None:
         opened = 1_720_000_000
@@ -445,8 +485,15 @@ class TradingEngineSafetyIntegrationTests(unittest.TestCase):
         ]
         broker.update_candles("XAUUSD", bars)
 
-    def _run_engine_once(self, broker: _OneShotPaper, action: str) -> None:
-        config_path = self._config_file()
+    def _run_engine_once(
+        self,
+        broker: _OneShotPaper,
+        action: str,
+        *,
+        wib_hour: int = 13,
+        **scalping_overrides,
+    ) -> None:
+        config_path = self._config_file(**scalping_overrides)
         engine = TradingEngine(str(config_path), "default")
         broker.engine = engine
 
@@ -457,7 +504,7 @@ class TradingEngineSafetyIntegrationTests(unittest.TestCase):
             patch("aitrader_bot.app.engine.create_broker", return_value=broker),
             patch("aitrader_bot.app.engine.ScalpingStrategy", side_effect=strategy_factory),
             patch("aitrader_bot.app.engine.notify_web"),
-            patch("aitrader_bot.app.engine._as_wib", return_value=datetime(2026, 7, 10, 13, 0, tzinfo=WIB)),
+            patch("aitrader_bot.app.engine._as_wib", return_value=datetime(2026, 7, 10, wib_hour, 0, tzinfo=WIB)),
         ):
             engine._run()
 
@@ -478,6 +525,66 @@ class TradingEngineSafetyIntegrationTests(unittest.TestCase):
         self._run_engine_once(broker, "hold")
         self.assertEqual(broker.close_attempts, 1)
         self.assertEqual(len(broker.get_positions("XAUUSD")), 1)
+
+    def test_flat_sell_signal_opens_protected_short(self) -> None:
+        broker = _OneShotPaper(initial_cash=10000)
+        self._seed_bars(broker, 100.0)
+        self._run_engine_once(broker, "sell", wib_hour=14)
+        positions = broker.get_positions("XAUUSD")
+        self.assertEqual(len(positions), 1)
+        self.assertEqual(positions[0].side, "sell")
+        self.assertGreater(positions[0].stop_loss, positions[0].avg_price)
+        self.assertLess(positions[0].take_profit, positions[0].avg_price)
+
+    def test_scale_in_configuration_allows_multiple_long_tickets(self) -> None:
+        broker = _OneShotPaper(initial_cash=10000)
+        self._seed_bars(broker, 100.0)
+        overrides = {
+            "max_open_positions": 2,
+            "max_positions_per_side": 2,
+            "allow_scale_in": True,
+        }
+        self._run_engine_once(broker, "buy", wib_hour=14, **overrides)
+        self._run_engine_once(broker, "buy", wib_hour=14, **overrides)
+        positions = broker.get_positions("XAUUSD")
+        self.assertEqual(len(positions), 2)
+        self.assertEqual({position.side for position in positions}, {"buy"})
+        self.assertEqual(len({position.ticket for position in positions}), 2)
+
+    def test_risk_exit_closes_every_triggered_ticket(self) -> None:
+        broker = _OneShotPaper(initial_cash=10000)
+        broker.connect()
+        broker.update_price("XAUUSD", 100.0)
+        broker.place_order("XAUUSD", OrderSide.BUY, 0.1)
+        broker.place_order("XAUUSD", OrderSide.SELL, 0.1)
+        self._seed_bars(broker, 90.0)
+        self._run_engine_once(broker, "hold")
+        self.assertEqual(broker.close_attempts, 2)
+        self.assertEqual(broker.get_positions("XAUUSD"), [])
+
+    def test_cli_scalp_uses_same_state_machine_for_short_entry(self) -> None:
+        broker = _OneShotPaper(initial_cash=10000)
+        self._seed_bars(broker, 100.0)
+        config_path = self._config_file()
+        args = SimpleNamespace(
+            config=str(config_path),
+            broker="default",
+            symbol=None,
+            iterations=1,
+            interval=0,
+        )
+
+        with (
+            patch("aitrader_bot.cli.create_broker", return_value=broker),
+            patch("aitrader_bot.cli.ScalpingStrategy", side_effect=lambda cfg: _FixedStrategy(cfg, "sell")),
+            patch("aitrader_bot.app.engine._as_wib", return_value=datetime(2026, 7, 10, 14, 0, tzinfo=WIB)),
+            redirect_stdout(io.StringIO()),
+        ):
+            _cmd_scalp(args)
+
+        positions = broker.get_positions("XAUUSD")
+        self.assertEqual(len(positions), 1)
+        self.assertEqual(positions[0].side, "sell")
 
 
 if __name__ == "__main__":

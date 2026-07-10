@@ -142,8 +142,8 @@ class BrokerTests(unittest.TestCase):
         positions = broker.get_positions()
         self.assertEqual(len(positions), 1)
 
-        # Sell
-        result = broker.place_order("BTCUSD", OrderSide.SELL, 0.1)
+        # Close the long ticket explicitly
+        result = broker.close_position(positions[0].ticket)
         self.assertEqual(result.status, OrderStatus.FILLED)
         self.assertAlmostEqual(broker.cash, 10000)
         self.assertEqual(len(broker.get_positions()), 0)
@@ -155,13 +155,14 @@ class BrokerTests(unittest.TestCase):
         result = broker.place_order("BTCUSD", OrderSide.BUY, 1.0)
         self.assertEqual(result.status, OrderStatus.REJECTED)
 
-    def test_paper_broker_no_position_to_sell(self) -> None:
+    def test_paper_broker_sell_opens_short_position(self) -> None:
         broker = create_broker("paper", initial_cash=10000)
         broker.connect()
-        broker.update_price("BTCUSD", 50000)
+        broker.update_price("BTCUSD", 100)
         result = broker.place_order("BTCUSD", OrderSide.SELL, 0.1)
-        self.assertEqual(result.status, OrderStatus.REJECTED)
-        self.assertIn("no position", result.message.lower())
+        self.assertEqual(result.status, OrderStatus.FILLED)
+        position = broker.get_positions("BTCUSD")[0]
+        self.assertEqual(position.side, "sell")
 
     def test_paper_broker_get_quote(self) -> None:
         broker = create_broker("paper")
@@ -251,6 +252,11 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(cfg.macd_fast, 12)
         self.assertEqual(cfg.bb_window, 20)
         self.assertEqual(cfg.max_trade_pct, 0.05)
+        self.assertTrue(cfg.allow_long_entries)
+        self.assertTrue(cfg.allow_short_entries)
+        self.assertEqual(cfg.max_open_positions, 1)
+        self.assertFalse(cfg.allow_scale_in)
+        self.assertFalse(cfg.hedging_enabled)
 
 
 if __name__ == "__main__":

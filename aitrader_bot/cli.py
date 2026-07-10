@@ -13,7 +13,7 @@ import argparse
 import json
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from .ai_trader_client import AiTraderClient
@@ -22,7 +22,8 @@ from .broker import ExchangeType, OrderSide, OrderStatus, create_broker
 from .config import load_config
 from .data import fetch_yahoo_chart, read_csv_prices
 from .models import PriceBar
-from .scalping import ScalpingStrategy
+from .position_state import PositionActionType, PositionPhase, PositionSide, PositionStateMachine
+from .scalping import ScalpingRiskManager, ScalpingStrategy
 from .strategy import AiMomentumStrategy
 
 
@@ -145,7 +146,6 @@ def _cmd_scalp(args: argparse.Namespace) -> None:
     from .app.engine import (
         _compute_sl_tp,
         _entry_safety_blocks,
-        _is_close_complete,
         _order_result_detail,
     )
     from .app.news_filter import get_upcoming_event
@@ -182,6 +182,12 @@ def _cmd_scalp(args: argparse.Namespace) -> None:
     try:
         broker.connect()
         acct = broker.get_account()
+        position_machine = PositionStateMachine.from_config(
+            config.scalping,
+            broker_supports_short=broker.supports_short_positions,
+            broker_supports_multiple=broker.supports_multiple_positions,
+        )
+        risk_manager = ScalpingRiskManager(config.scalping)
         print(f"[OK] Connected — {acct.equity} {acct.currency}")
     except Exception as e:
         print(f"[FAIL] Connection failed: {e}")
@@ -241,17 +247,20 @@ def _cmd_scalp(args: argparse.Namespace) -> None:
                 # Generate signal
                 signal = strategy.generate(symbol, bars, quote)
                 positions = broker.get_positions(mapped_symbol)
-                has_pos = len(positions) > 0
+                position_machine.sync(positions)
+                managed_positions = position_machine.active_positions(mapped_symbol)
 
-                if has_pos and broker.supports_attached_protection:
-                    pos = positions[0]
-                    side = (getattr(pos, "side", "") or "buy").lower()
-                    needs_sl = config.scalping.stop_loss_pips > 0 and pos.stop_loss is None
-                    needs_tp = config.scalping.take_profit_pips > 0 and pos.take_profit is None
-                    if side == "buy" and (needs_sl or needs_tp):
+                if managed_positions and broker.supports_attached_protection:
+                    for pos in positions:
+                        side = (getattr(pos, "side", "") or "buy").lower()
+                        side = "sell" if side in {"sell", "short"} else "buy"
+                        needs_sl = config.scalping.stop_loss_pips > 0 and pos.stop_loss is None
+                        needs_tp = config.scalping.take_profit_pips > 0 and pos.take_profit is None
+                        if not (needs_sl or needs_tp):
+                            continue
                         desired = _compute_sl_tp(
                             pos.avg_price,
-                            "buy",
+                            side,
                             config.scalping,
                             symbol=symbol,
                             point_size=quote.point_size,
@@ -264,41 +273,85 @@ def _cmd_scalp(args: argparse.Namespace) -> None:
                         if repair.status != OrderStatus.FILLED:
                             print(f"[{iteration}] [SAFETY] {_order_result_detail(repair, pos.quantity)}")
 
-                # Execute
-                qty = 0.01
-                if signal.action == "buy" and not has_pos:
-                    if entry_blocks:
-                        msg = f"[ENTRY BLOCKED] {mapped_symbol} | {'; '.join(entry_blocks)}"
+                messages: list[str] = []
+                close_attempted = False
+
+                def close_position(pos, reason: str) -> None:
+                    nonlocal close_attempted
+                    close_attempted = True
+                    position_machine.mark_closing(pos.ticket)
+                    result = broker.close_position(pos.ticket)
+                    phase = position_machine.apply_close_result(pos.ticket, result)
+                    if phase == PositionPhase.CLOSED:
+                        messages.append(f"[CLOSED {pos.side.name}] {pos.ticket} | {reason}")
                     else:
+                        messages.append(
+                            f"[CLOSE {phase.value.upper()}] {pos.ticket} | "
+                            f"{_order_result_detail(result, pos.quantity)}"
+                        )
+
+                now_utc = datetime.now(timezone.utc)
+                for pos in list(managed_positions):
+                    if pos.phase == PositionPhase.CLOSING:
+                        continue
+                    forced_exit = risk_manager.forced_exit_reason(
+                        pos.avg_price,
+                        pos.current_price,
+                        entry_time=pos.opened_at,
+                        current_time=now_utc,
+                        side=pos.side.value,
+                        point_size=quote.point_size,
+                    )
+                    if forced_exit:
+                        close_position(pos, forced_exit)
+
+                if not close_attempted:
+                    actions = position_machine.plan_signal(
+                        signal.action,
+                        mapped_symbol,
+                        entry_allowed=not entry_blocks,
+                        entry_block_reason="; ".join(entry_blocks),
+                    )
+                    for action in actions:
+                        if action.action == PositionActionType.HOLD:
+                            messages.append(f"[HOLD] {action.reason}")
+                            continue
+                        if action.action == PositionActionType.CLOSE:
+                            pos = position_machine.get(action.ticket)
+                            if pos is not None:
+                                close_position(pos, action.reason)
+                            continue
+
+                        side = (
+                            PositionSide.LONG
+                            if action.action == PositionActionType.OPEN_LONG
+                            else PositionSide.SHORT
+                        )
+                        order_side = OrderSide.BUY if side == PositionSide.LONG else OrderSide.SELL
+                        entry_price = quote.ask if side == PositionSide.LONG else quote.bid
                         protection = _compute_sl_tp(
-                            quote.ask,
-                            "buy",
+                            entry_price,
+                            side.value,
                             config.scalping,
                             symbol=symbol,
                             point_size=quote.point_size,
                         )
                         result = broker.place_order(
                             mapped_symbol,
-                            OrderSide.BUY,
-                            qty,
+                            order_side,
+                            0.01,
                             stop_loss=protection["sl"] if config.scalping.stop_loss_pips > 0 else None,
                             take_profit=protection["tp"] if config.scalping.take_profit_pips > 0 else None,
                         )
-                        if result.status == OrderStatus.FILLED and result.filled_qty > 0:
-                            msg = f"[BUY]  {mapped_symbol} @ {quote.last:.2f} | {result.message}"
+                        position_machine.record_entry_result(mapped_symbol, side, result)
+                        if result.status in {OrderStatus.FILLED, OrderStatus.PARTIAL} and result.filled_qty > 0:
+                            messages.append(f"[OPEN {side.name}] {mapped_symbol} | {result.message}")
+                        elif result.status == OrderStatus.PENDING:
+                            messages.append(f"[ENTRY PENDING {side.name}] {result.message}")
                         else:
-                            msg = f"[ORDER REJECTED] {_order_result_detail(result, qty)}"
-                elif signal.action == "sell" and has_pos:
-                    result = broker.close_position(positions[0].ticket)
-                    if _is_close_complete(result, positions[0].quantity):
-                        msg = f"[SELL] {mapped_symbol} @ {quote.last:.2f} | {result.message}"
-                    else:
-                        msg = f"[CLOSE INCOMPLETE] {_order_result_detail(result, positions[0].quantity)}"
-                else:
-                    status = "HODL" if has_pos else "HOLD"
-                    msg = f"[{status}] {mapped_symbol} @ {quote.last:.2f}  sc={signal.confidence:.3f}  [{signal.reason}]"
+                            messages.append(f"[ENTRY REJECTED {side.name}] {_order_result_detail(result, 0.01)}")
 
-                print(f"[{iteration}] {msg}")
+                print(f"[{iteration}] {' || '.join(messages)}")
 
             time.sleep(args.interval)
 

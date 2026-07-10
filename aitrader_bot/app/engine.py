@@ -24,6 +24,12 @@ from aitrader_bot.broker import OrderSide, OrderStatus, create_broker
 from aitrader_bot.config import BotConfig, load_config
 from aitrader_bot.indicators import ema, macd, bollinger_bands, stochastic, rsi, volatility
 from aitrader_bot.models import PriceBar
+from aitrader_bot.position_state import (
+    PositionActionType,
+    PositionPhase,
+    PositionSide,
+    PositionStateMachine,
+)
 from aitrader_bot.scalping import ScalpingStrategy, ScalpingRiskManager
 
 from . import dashboard_data as dd
@@ -299,9 +305,17 @@ def _contract_size(symbol: str) -> int:
         return 100000   # Standard forex: 100k units
 
 
-def _compute_dollar_pnl(symbol: str, entry_price: float, exit_price: float, quantity: float) -> float:
+def _compute_dollar_pnl(
+    symbol: str,
+    entry_price: float,
+    exit_price: float,
+    quantity: float,
+    side: str = "buy",
+) -> float:
     """Compute actual dollar P&L: price_diff * quantity * contract_size."""
     price_diff = exit_price - entry_price
+    if side.lower() in {"sell", "short"}:
+        price_diff *= -1
     return price_diff * quantity * _contract_size(symbol)
 
 
@@ -347,6 +361,32 @@ def _compute_sl_tp(
         tp = round(price + tp_pips * pip_value, digits)
     rr = round(tp_pips / sl_pips, 1) if sl_pips > 0 else 0.0
     return {"entry": entry, "sl": sl, "tp": tp, "rr": rr}
+
+
+def _dashboard_position_rows(positions, point_size: float | None) -> list[dict]:
+    pip_value = point_size * 10 if point_size else 0.1
+    rows: list[dict] = []
+    for position in positions:
+        price_diff = position.current_price - position.avg_price
+        if position.side == PositionSide.SHORT:
+            price_diff *= -1
+        pnl_pips = price_diff / pip_value if pip_value > 0 else 0.0
+        rows.append({
+            "ticket": position.ticket,
+            "symbol": position.symbol,
+            "side": position.side.name,
+            "qty": round(position.quantity, 4),
+            "entry": round(position.avg_price, 5),
+            "current": round(position.current_price, 5),
+            "pnl": round(position.unrealized_pnl, 2),
+            "pnl_pips": round(pnl_pips, 1),
+            "opened_at": position.opened_at.isoformat() if position.opened_at else None,
+            "sl": position.stop_loss,
+            "tp": position.take_profit,
+            "phase": position.phase.value,
+            "last_error": position.last_error,
+        })
+    return rows
 
 
 class TradingEngine:
@@ -472,6 +512,11 @@ class TradingEngine:
         try:
             self.broker.connect()
             acct = self.broker.get_account()
+            position_machine = PositionStateMachine.from_config(
+                strategy.config,
+                broker_supports_short=self.broker.supports_short_positions,
+                broker_supports_multiple=self.broker.supports_multiple_positions,
+            )
 
             # Update MT5 account information for dashboard
             mt5_login = None
@@ -547,8 +592,6 @@ class TradingEngine:
         last_error_iter = -10  # for error notification cooldown
         bars: list[PriceBar] = []
         candle_history: list = []
-        entry_time: datetime | None = None  # Track entry timestamp for timeout exit
-        missing_entry_time_warned = False
         protection_repair_failures: set[str] = set()
         last_account_refresh = time.monotonic()
 
@@ -627,37 +670,29 @@ class TradingEngine:
                 # 4. Generate signal
                 signal = strategy.generate(symbol, bars, quote)
                 positions = self.broker.get_positions(mapped_symbol)
-                has_pos = len(positions) > 0
-                if has_pos and entry_time is None:
-                    entry_time = _position_entry_time(positions[0])
-                    if entry_time is not None:
-                        missing_entry_time_warned = False
-                        dd.update(entry_time=entry_time.isoformat())
-                        log.info(
-                            f"Recovered position {positions[0].ticket} entry time "
-                            f"{entry_time.isoformat()}"
-                        )
-                    elif not missing_entry_time_warned:
-                        log.warning(
-                            f"Position {positions[0].ticket} has no broker entry time; "
-                            "price SL/TP remains active but timeout recovery is unavailable"
-                        )
-                        missing_entry_time_warned = True
-                elif not has_pos:
-                    if entry_time is not None:
-                        entry_time = None
-                        dd.update(entry_time=None)
-                    missing_entry_time_warned = False
+                sync_result = position_machine.sync(positions)
+                managed_positions = position_machine.active_positions(mapped_symbol)
+                for ticket in sync_result.opened:
+                    recovered = position_machine.get(ticket)
+                    log.info(
+                        f"Discovered broker position {ticket}: "
+                        f"{recovered.side.value} {recovered.quantity:.4f} {recovered.symbol}"
+                    )
 
-                if has_pos and self.broker.supports_attached_protection:
-                    pos = positions[0]
-                    side = (getattr(pos, "side", "") or "buy").lower()
-                    needs_sl = strategy.config.stop_loss_pips > 0 and pos.stop_loss is None
-                    needs_tp = strategy.config.take_profit_pips > 0 and pos.take_profit is None
-                    if side == "buy" and (needs_sl or needs_tp):
+                opened_times = [p.opened_at for p in managed_positions if p.opened_at is not None]
+                dd.update(entry_time=min(opened_times).isoformat() if opened_times else None)
+
+                if managed_positions and self.broker.supports_attached_protection:
+                    for pos in positions:
+                        side = (getattr(pos, "side", "") or "buy").lower()
+                        side = "sell" if side in {"sell", "short"} else "buy"
+                        needs_sl = strategy.config.stop_loss_pips > 0 and pos.stop_loss is None
+                        needs_tp = strategy.config.take_profit_pips > 0 and pos.take_profit is None
+                        if not (needs_sl or needs_tp):
+                            continue
                         desired = _compute_sl_tp(
                             pos.avg_price,
-                            "buy",
+                            side,
                             strategy.config,
                             symbol=symbol,
                             point_size=quote.point_size,
@@ -683,35 +718,16 @@ class TradingEngine:
                             dd.add_log(f"ERROR: {message}")
                             tg.send_error(message)
 
-                dashboard_positions = []
-                for p in positions:
-                    side = (getattr(p, "side", "") or "buy").upper()
-                    pnl_pips = 0.0
-                    if p.avg_price:
-                        price_diff = quote.last - p.avg_price
-                        if side == "SELL":
-                            price_diff *= -1
-                        pnl_pips = price_diff * 10
-                    dashboard_positions.append({
-                        "ticket": p.ticket,
-                        "symbol": p.symbol,
-                        "side": side,
-                        "qty": round(p.quantity, 4),
-                        "entry": round(p.avg_price, 2),
-                        "current": round(quote.last, 2),
-                        "pnl": round(p.unrealized_pnl, 2),
-                        "pnl_pips": round(pnl_pips, 1),
-                        "opened_at": p.opened_at.isoformat() if p.opened_at else None,
-                        "sl": p.stop_loss,
-                        "tp": p.take_profit,
-                    })
+                dashboard_positions = _dashboard_position_rows(
+                    managed_positions, quote.point_size,
+                )
                 dd.update(open_positions=dashboard_positions)
 
                 # 4a. Higher Timeframe Confirmation (M5 → M1)
                 # Cek M5 EMA 9/21 — reject only if EMAs are >1% divergent
                 tf_confirmed = True
                 tf_reason = ""
-                if not has_pos and not entry_blocks and signal.action in ("buy", "sell"):
+                if not entry_blocks and signal.action in ("buy", "sell"):
                     try:
                         tf_candles = self.broker.fetch_candles(mapped_symbol, "5m", 25)
                         if len(tf_candles) >= 15:
@@ -771,26 +787,94 @@ class TradingEngine:
                     analysis=analysis,
                 )
 
-                # 5. Execute + notify
-                qty = 0.01
-                signal_msg = ""
-                position_closed_this_cycle = False
+                # 5. Execute the position state machine.
+                signal_messages: list[str] = []
+                close_attempted = False
+                broker_state_changed = False
 
-                if signal.action == "buy" and not has_pos:
-                    if entry_blocks:
-                        reason = "; ".join(entry_blocks)
-                        signal_msg = f"ENTRY BLOCKED BUY {mapped_symbol} @ {quote.last:.2f} | {reason}"
-                        self._put(f"signal:{signal_msg}")
-                        log.info(f"signal:{signal_msg}")
-                        dd.add_log(f"ENTRY BLOCKED: {reason}")
-                    # ── Higher TF confirmation filter ────────────────────────
-                    elif not tf_confirmed:
-                        signal_msg = f"TF REJECTED BUY {mapped_symbol} @ {quote.last:.2f} | {tf_reason}"
-                        self._put(f"signal:{signal_msg}")
-                        log.info(f"signal:{signal_msg}")
-                        dd.add_log(f"TF REJECT: {tf_reason}")
+                def execute_close(pos, reason: str) -> None:
+                    nonlocal close_attempted, broker_state_changed
+                    close_attempted = True
+                    broker_state_changed = True
+                    position_machine.mark_closing(pos.ticket)
+                    result = self.broker.close_position(pos.ticket)
+                    phase = position_machine.apply_close_result(pos.ticket, result)
+                    pnl_usd = _compute_dollar_pnl(
+                        symbol,
+                        pos.avg_price,
+                        pos.current_price,
+                        pos.quantity,
+                        pos.side.value,
+                    )
+                    if phase == PositionPhase.CLOSED:
+                        msg = (
+                            f"CLOSED {pos.side.name} {pos.ticket} {pos.quantity:.4f} "
+                            f"{mapped_symbol} @ {pos.current_price:.5f} P&L=${pnl_usd:+.2f} | {reason}"
+                        )
+                        signal_messages.append(msg)
+                        dd.add_trade(
+                            f"CLOSE {pos.side.name}", mapped_symbol, pos.current_price,
+                            pos.quantity, reason, pnl_usd,
+                        )
+                        dd.add_log(msg)
+                        close_action = "sell" if pos.side == PositionSide.LONG else "buy"
+                        tg.send_signal(close_action, mapped_symbol, pos.current_price, reason, pnl=pnl_usd)
                     else:
-                        # Calculate dynamic position size
+                        detail = _order_result_detail(result, pos.quantity)
+                        msg = f"CLOSE {phase.value.upper()} {pos.ticket} ({reason}) | {detail}"
+                        signal_messages.append(msg)
+                        self._put(f"error:{msg}")
+                        log.error(msg)
+                        dd.add_log(f"ERROR: {msg}")
+
+                # Risk exits are evaluated independently for every ticket.
+                now_utc = datetime.now(timezone.utc)
+                for pos in list(managed_positions):
+                    if pos.phase == PositionPhase.CLOSING:
+                        continue
+                    forced_exit = risk_mgr.forced_exit_reason(
+                        pos.avg_price,
+                        pos.current_price,
+                        entry_time=pos.opened_at,
+                        current_time=now_utc,
+                        side=pos.side.value,
+                        point_size=quote.point_size,
+                    )
+                    if forced_exit:
+                        execute_close(pos, forced_exit)
+
+                # Do not reverse or add exposure in the same cycle as a risk close.
+                if not close_attempted:
+                    entry_reason_parts = list(entry_blocks)
+                    if not tf_confirmed:
+                        entry_reason_parts.append(tf_reason or "higher timeframe rejected entry")
+                    actions = position_machine.plan_signal(
+                        signal.action,
+                        mapped_symbol,
+                        entry_allowed=not entry_reason_parts,
+                        entry_block_reason="; ".join(entry_reason_parts),
+                    )
+
+                    for action in actions:
+                        if action.action == PositionActionType.HOLD:
+                            signal_messages.append(
+                                f"HOLD {mapped_symbol} @ {quote.last:.5f} | {action.reason}"
+                            )
+                            continue
+
+                        if action.action == PositionActionType.CLOSE:
+                            pos = position_machine.get(action.ticket)
+                            if pos is not None:
+                                execute_close(pos, action.reason)
+                            continue
+
+                        side = (
+                            PositionSide.LONG
+                            if action.action == PositionActionType.OPEN_LONG
+                            else PositionSide.SHORT
+                        )
+                        order_side = OrderSide.BUY if side == PositionSide.LONG else OrderSide.SELL
+                        entry_reference = quote.ask if side == PositionSide.LONG else quote.bid
                         try:
                             acct_data = self.broker.get_account()
                             eq = acct_data.equity
@@ -798,128 +882,77 @@ class TradingEngine:
                         except Exception:
                             eq = 10000.0
                             bal = 10000.0
-                        qty = risk_mgr.buy_quantity(bal, eq, quote.last)
-                        # ── AGGRESSIVE MODE: ensure minimum lot ────────────────
+                        qty = risk_mgr.buy_quantity(bal, eq, entry_reference)
                         if strategy.config.aggressive_mode and qty < 0.05:
-                            max_by_equity = bal * strategy.config.max_trade_pct / quote.last
-                            qty = max(0.05, min(max_by_equity, bal * 0.05 / quote.last))
+                            max_by_equity = bal * strategy.config.max_trade_pct / entry_reference
+                            qty = max(0.05, min(max_by_equity, bal * 0.05 / entry_reference))
                         if qty <= 0:
                             qty = 0.01
-                        entry_sltp = _compute_sl_tp(
-                            quote.ask,
-                            "buy",
+
+                        protection = _compute_sl_tp(
+                            entry_reference,
+                            side.value,
                             strategy.config,
                             symbol=symbol,
                             point_size=quote.point_size,
                         )
                         result = self.broker.place_order(
                             mapped_symbol,
-                            OrderSide.BUY,
+                            order_side,
                             qty,
-                            stop_loss=entry_sltp["sl"] if strategy.config.stop_loss_pips > 0 else None,
-                            take_profit=entry_sltp["tp"] if strategy.config.take_profit_pips > 0 else None,
+                            stop_loss=protection["sl"] if strategy.config.stop_loss_pips > 0 else None,
+                            take_profit=protection["tp"] if strategy.config.take_profit_pips > 0 else None,
                         )
-
-                        if result is not None and result.status == OrderStatus.FILLED and result.filled_qty > 0:
-                            signal_msg = f"BOUGHT {qty:.4f} {mapped_symbol} @ {quote.last:.2f} | {signal.reason}"
-                            self._put(f"signal:{signal_msg}")
-                            log.info(f"signal:{signal_msg}")
-                            dd.add_trade("BUY", mapped_symbol, quote.last, qty, signal.reason)
-                            dd.add_log(f"BOUGHT {qty:.4f} {mapped_symbol} @ {quote.last:.2f}")
-                            tg.send_signal("buy", mapped_symbol, quote.last, signal.reason)
-                            entry_time = result.timestamp
-                            if entry_time.tzinfo is None:
-                                entry_time = entry_time.replace(tzinfo=timezone.utc)
-                            dd.update(entry_time=entry_time.isoformat(), timeout_minutes=strategy.config.timeout_exit_minutes)
-                            log.info(f"[TIMEOUT] Entry tracked at {entry_time.strftime('%H:%M:%S')}, timeout={strategy.config.timeout_exit_minutes}m")
+                        position_machine.record_entry_result(mapped_symbol, side, result)
+                        if (
+                            result is not None
+                            and result.status in {OrderStatus.FILLED, OrderStatus.PARTIAL}
+                            and result.filled_qty > 0
+                        ):
+                            broker_state_changed = True
+                            msg = (
+                                f"OPENED {side.name} {result.filled_qty:.4f} {mapped_symbol} "
+                                f"@ {result.avg_fill_price or entry_reference:.5f} | {signal.reason}"
+                            )
+                            signal_messages.append(msg)
+                            dd.add_trade(
+                                f"OPEN {side.name}", mapped_symbol,
+                                result.avg_fill_price or entry_reference,
+                                result.filled_qty, signal.reason,
+                            )
+                            dd.add_log(msg)
+                            tg.send_signal(side.value, mapped_symbol, entry_reference, signal.reason)
+                            dd.update(
+                                entry_time=result.timestamp.isoformat(),
+                                timeout_minutes=strategy.config.timeout_exit_minutes,
+                            )
+                        elif result is not None and result.status == OrderStatus.PENDING:
+                            signal_messages.append(
+                                f"ENTRY PENDING {side.name} {mapped_symbol} | {result.message}"
+                            )
                         else:
                             detail = _order_result_detail(result, qty)
-                            signal_msg = f"ORDER REJECTED: {detail} @ {quote.last:.2f}"
-                            self._put(f"signal:{signal_msg}")
-                            log.warning(f"signal:{signal_msg}")
-                            dd.add_log(f"REJECTED: {detail}")
+                            msg = f"ENTRY REJECTED {side.name} {mapped_symbol} | {detail}"
+                            signal_messages.append(msg)
+                            log.warning(msg)
+                            dd.add_log(f"REJECTED: {msg}")
 
-                elif signal.action == "sell" and has_pos:
-                    # ── OPPOSITE-SIGNAL EXIT (only if in profit) ──────────────
-                    pos = positions[0]
-                    pnl_price_diff = quote.last - pos.avg_price if pos.avg_price else 0.0
-                    pnl_pips = pnl_price_diff * 10
-                    pnl_usd = _compute_dollar_pnl(symbol, pos.avg_price, quote.last, pos.quantity)
+                signal_msg = " || ".join(signal_messages) or (
+                    f"HOLD {mapped_symbol} @ {quote.last:.5f} sc={signal.confidence:.3f}"
+                )
+                self._put(f"signal:{signal_msg}")
+                log.info(f"signal:{signal_msg}")
 
-                    if pnl_usd > 0:
-                        # In profit — close immediately (lock profit)
-                        result = self.broker.close_position(pos.ticket)
-                        if _is_close_complete(result, pos.quantity):
-                            signal_msg = f"SOLD {mapped_symbol} @ {quote.last:.2f} P&L=${pnl_usd:+.2f} | OPPOSITE SIGNAL (profit): {signal.reason}"
-                            self._put(f"signal:{signal_msg}")
-                            log.info(f"signal:{signal_msg}")
-                            dd.add_trade("SELL (opp signal profit)", mapped_symbol, quote.last, pos.quantity, f"Opp profit: {signal.reason}", pnl_usd)
-                            dd.add_log(f"SOLD {mapped_symbol} @ {quote.last:.2f} P&L=${pnl_usd:+.2f} (opp signal profit)")
-                            tg.send_signal("sell", mapped_symbol, quote.last, f"Opposite signal (profit): {signal.reason}", pnl=pnl_usd)
-                            entry_time = None
-                            has_pos = False
-                            position_closed_this_cycle = True
-                            dd.update(entry_time=None)
-                        else:
-                            signal_msg = f"CLOSE INCOMPLETE {mapped_symbol} | {_order_result_detail(result, pos.quantity)}"
-                            self._put(f"error:{signal_msg}")
-                            log.error(signal_msg)
-                            dd.add_log(f"ERROR: {signal_msg}")
-                    else:
-                        # In loss — DO NOT close opposite signal, let SL handle it
-                        # Fall through to forced_exit logic below
-                        signal_msg = f"OPP SIGNAL HOLD {mapped_symbol} @ {quote.last:.2f} P&L=${pnl_usd:+.2f} — waiting for SL"
-                        self._put(f"signal:{signal_msg}")
-                        log.info(f"signal:{signal_msg}")
-                        dd.add_log(f"OPP SIGNAL HOLD (loss ${pnl_usd:+.2f}) — letting SL handle")
-
-                # ── ALWAYS check forced exit (SL/TP/timeout) for existing positions ──
-                forced_exit = None
-                if has_pos and not position_closed_this_cycle:
-                    pos = positions[0]
-                    now = datetime.now(timezone.utc)
-                    forced_exit = risk_mgr.forced_exit_reason(
-                        pos.avg_price, quote.last,
-                        entry_time=entry_time,
-                        current_time=now,
-                    )
-
-                if forced_exit:
-                    result = self.broker.close_position(pos.ticket)
-                    pnl_usd = _compute_dollar_pnl(symbol, pos.avg_price, quote.last, pos.quantity)
-                    if _is_close_complete(result, pos.quantity):
-                        signal_msg = f"CLOSED {mapped_symbol} @ {quote.last:.2f} P&L=${pnl_usd:+.2f} | {forced_exit}"
-                        self._put(f"signal:{signal_msg}")
-                        log.info(f"signal:{signal_msg}")
-                        if "timeout" in forced_exit:
-                            trade_type = "SELL (timeout)"
-                        elif "lock profit" in forced_exit:
-                            trade_type = "SELL (lock profit)"
-                        else:
-                            trade_type = "SELL (SL/TP)"
-                        dd.add_trade(trade_type, mapped_symbol, quote.last, pos.quantity, forced_exit, pnl_usd)
-                        dd.add_log(f"CLOSED {mapped_symbol} @ {quote.last:.2f} P&L=${pnl_usd:+.2f} ({forced_exit})")
-                        tg.send_signal("sell", mapped_symbol, quote.last, forced_exit, pnl=pnl_usd)
-                        entry_time = None
-                        has_pos = False
-                        dd.update(entry_time=None)
-                    else:
-                        signal_msg = (
-                            f"SAFETY CLOSE INCOMPLETE {mapped_symbol} ({forced_exit}) | "
-                            f"{_order_result_detail(result, pos.quantity)}"
-                        )
-                        self._put(f"error:{signal_msg}")
-                        log.error(signal_msg)
-                        dd.add_log(f"ERROR: {signal_msg}")
-                elif has_pos:
-                    hold_label = "HODL"
-                    signal_msg = f"{hold_label} {mapped_symbol} @ {quote.last:.2f}  sc={signal.confidence:.3f}  [{signal.reason}]"
-                    self._put(f"signal:{signal_msg}")
-                    log.info(f"signal:{signal_msg}")
-                    dd.add_log(f"{hold_label} {mapped_symbol} @ {quote.last:.2f} sc={signal.confidence:.3f}")
-                elif not signal_msg:
-                    signal_msg = f"HOLD {mapped_symbol} @ {quote.last:.2f} sc={signal.confidence:.3f} [{signal.reason}]"
-                    self._put(f"signal:{signal_msg}")
+                if broker_state_changed:
+                    try:
+                        refreshed_positions = self.broker.get_positions(mapped_symbol)
+                        position_machine.sync(refreshed_positions)
+                    except Exception as e:
+                        log.warning(f"Position refresh after execution failed: {e}")
+                dd.update(open_positions=_dashboard_position_rows(
+                    position_machine.active_positions(mapped_symbol),
+                    quote.point_size,
+                ))
 
                 # Update dashboard data with latest signal (msg always defined now)
                 dd.update(

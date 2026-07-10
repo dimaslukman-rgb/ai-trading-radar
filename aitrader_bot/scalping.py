@@ -406,7 +406,8 @@ class ScalpingRiskManager:
         return max(0.0, min(quantity, max_trade, cash / price))
 
     def forced_exit_reason(self, entry_price: float, current_price: float,
-                           entry_time=None, current_time=None) -> str | None:
+                           entry_time=None, current_time=None,
+                           side: str = "buy", point_size: float | None = None) -> str | None:
         """Check SL/TP in pips + optional timeout exit.
 
         Args:
@@ -423,20 +424,23 @@ class ScalpingRiskManager:
 
         sl_pips = self.config.stop_loss_pips
         tp_pips = self.config.take_profit_pips
+        pip_value = point_size * 10 if point_size is not None and point_size > 0 else 0.1
+        pnl_pips = (current_price - entry_price) / pip_value
+        if side.lower() in {"sell", "short"}:
+            pnl_pips *= -1
 
         # ═══ TAK PROFIT ═══════════════════════════════════════════════
-        # 100 points = 10 pips for XAUUSD
-        # TP: exit at +10 pips (100 points) profit
-        if current_price >= entry_price + tp_pips * 0.1:
+        tolerance = 1e-9
+        if tp_pips > 0 and pnl_pips + tolerance >= tp_pips:
             return f"take profit +{tp_pips:.0f}p ({tp_pips * 10:.0f}pt)"
 
         # ═══ STOP LOSS ════════════════════════════════════════════════
-        if current_price <= entry_price - sl_pips * 0.1:
+        if sl_pips > 0 and pnl_pips - tolerance <= -sl_pips:
             return f"stop loss -{sl_pips:.0f}p ({sl_pips * 10:.0f}pt)"
 
         # ═══ LOCK PROFIT ═══════════════════════════════════════════════
         lock_pips = self.config.trailing_stop_pips
-        if lock_pips > 0 and current_price >= entry_price + lock_pips * 0.1:
+        if lock_pips > 0 and pnl_pips + tolerance >= lock_pips:
             return f"lock profit +{lock_pips:.0f}p"
 
         # ═══ TIMEOUT EXIT (aggressive mode) ═══════════════════════════
@@ -444,14 +448,22 @@ class ScalpingRiskManager:
             elapsed_min = (current_time - entry_time).total_seconds() / 60.0
             timeout = self.config.timeout_exit_minutes
             if timeout > 0 and elapsed_min >= timeout:
-                pnl_pips = (current_price - entry_price) * 10
                 return f"timeout {timeout}m (P&L {pnl_pips:+.0f}p)"
 
         return None
 
-    def trailing_stop_price(self, entry_price: float, current_price: float) -> float | None:
+    def trailing_stop_price(
+        self,
+        entry_price: float,
+        current_price: float,
+        side: str = "buy",
+        point_size: float | None = None,
+    ) -> float | None:
         """Return the lock-profit exit price if triggered, else None."""
         lock_pips = self.config.trailing_stop_pips
-        if lock_pips > 0 and current_price >= entry_price + lock_pips * 0.1:
-            return entry_price + lock_pips * 0.1
+        pip_value = point_size * 10 if point_size is not None and point_size > 0 else 0.1
+        direction = -1 if side.lower() in {"sell", "short"} else 1
+        pnl_pips = (current_price - entry_price) / pip_value * direction
+        if lock_pips > 0 and pnl_pips >= lock_pips:
+            return entry_price + lock_pips * pip_value * direction
         return None

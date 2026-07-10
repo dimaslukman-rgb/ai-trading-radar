@@ -417,10 +417,10 @@ tr:hover{background:rgba(0,255,136,.02)}
 <div class="table-wrap" style="margin-bottom:16px">
   <table>
     <thead><tr>
-      <th>Ticket</th><th>Pair</th><th>Side</th><th>Qty</th><th>Entry</th><th>Current</th><th>Pips</th><th>P&L</th>
+      <th>Ticket</th><th>Pair</th><th>Side</th><th>State</th><th>Qty</th><th>Entry</th><th>Current</th><th>Pips</th><th>P&L</th>
     </tr></thead>
     <tbody id="positionsBody">
-      <tr><td colspan="8" class="empty-state">No open positions</td></tr>
+      <tr><td colspan="9" class="empty-state">No open positions</td></tr>
     </tbody>
   </table>
 </div>
@@ -849,14 +849,16 @@ function updateUI(data) {
   const posBody = $('positionsBody');
   if (openPositions.length > 0) {
     posBody.innerHTML = openPositions.map(p => {
-      const side = (p.side || 'BUY').toUpperCase();
-      const cls = side === 'SELL' ? 'sell' : 'buy';
+      const side = (p.side || 'LONG').toUpperCase();
+      const cls = side === 'SHORT' || side === 'SELL' ? 'sell' : 'buy';
+      const phase = (p.phase || 'open').toUpperCase();
       const pnl = Number(p.pnl || 0);
       const pips = Number(p.pnl_pips || 0);
       return `<tr>
         <td style="color:var(--text3)">${p.ticket || '--'}</td>
         <td style="color:var(--cyan)">${p.symbol || '--'}</td>
         <td><span class="tag ${cls}">${side}</span></td>
+        <td style="color:var(--text3)">${phase}</td>
         <td>${p.qty != null ? Number(p.qty).toFixed(2) : '--'}</td>
         <td>$${p.entry != null ? Number(p.entry).toFixed(2) : '--'}</td>
         <td>$${p.current != null ? Number(p.current).toFixed(2) : '--'}</td>
@@ -865,7 +867,7 @@ function updateUI(data) {
       </tr>`;
     }).join('');
   } else {
-    posBody.innerHTML = '<tr><td colspan="8" class="empty-state">No open positions</td></tr>';
+    posBody.innerHTML = '<tr><td colspan="9" class="empty-state">No open positions</td></tr>';
   }
 
   // Trades

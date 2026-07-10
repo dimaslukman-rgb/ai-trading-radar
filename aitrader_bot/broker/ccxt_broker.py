@@ -278,6 +278,7 @@ class CcxtBroker(BaseBroker):
                     unrealized_pnl=0.0,
                     realized_pnl=0.0,
                     ticket=asset,
+                    side="buy",
                 ))
             return positions
         except Exception:

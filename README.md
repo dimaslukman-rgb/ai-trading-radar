@@ -32,6 +32,7 @@ Safe config templates are included. Real broker credentials are intentionally ig
 
 - Multi-broker abstraction with Paper, MT5, CCXT/Binance, and Alpaca adapters.
 - XAUUSD scalping strategy with EMA, MACD, Bollinger Bands, Stochastic, RSI, and momentum velocity.
+- Broker-authoritative long/short position state with independent multi-ticket tracking, pending/partial close states, and configurable scale-in or hedging policy.
 - Risk manager for dynamic position sizing, stop loss, take profit, lock profit, and timeout exits.
 - Real-time browser dashboard at `http://127.0.0.1:9190`.
 - Open position table with ticket, side, entry, current price, pips, and P&L.
@@ -165,6 +166,7 @@ aitrader_bot/
   app/             Web dashboard, GUI, tray, logging, Telegram notifier
   broker/          Paper, MT5, CCXT, Alpaca broker adapters
   backtest.py      Historical simulation engine
+  position_state.py Long/short and multi-ticket position state machine
   scalping.py      XAUUSD scalping strategy and risk manager
   strategy.py      Momentum signal model
   config.py        Typed config loader
@@ -178,6 +180,25 @@ run_scalping.py    Windows app/live engine launcher
 - `config.example.json`: safe default paper config.
 - `config_finex.example.json`: sanitized 5-minute XAUUSD profile.
 - `config_xauusd_m1_ultra.example.json`: sanitized aggressive M1 profile.
+
+Position behavior is explicit in every safe template. Defaults preserve one position at a time:
+
+```json
+{
+  "scalping": {
+    "allow_long_entries": true,
+    "allow_short_entries": true,
+    "max_open_positions": 1,
+    "max_positions_per_side": 1,
+    "allow_scale_in": false,
+    "hedging_enabled": false,
+    "close_on_opposite_signal": true,
+    "opposite_exit_only_in_profit": true
+  }
+}
+```
+
+Set both position limits above `1` and enable `allow_scale_in` only after verifying that the connected broker account supports independent hedged tickets. MT5 netting accounts remain limited to one net position.
 
 Local live profiles are excluded from Git:
 
@@ -213,7 +234,6 @@ git grep -n --cached -I -E "password|bot_token|api_key|secret|login"
 
 - Strategy performance reports by market session.
 - Risk dashboard with daily loss limits and max drawdown controls.
-- More explicit long/short position handling across all broker adapters.
 - Backtest parity between live engine exits and historical simulations.
 - Docker or Windows Task Scheduler deployment recipes.
 

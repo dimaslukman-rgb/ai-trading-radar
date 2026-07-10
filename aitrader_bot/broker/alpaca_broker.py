@@ -77,6 +77,10 @@ class AlpacaBroker(BaseBroker):
         return ExchangeType.ALPACA
 
     @property
+    def supports_short_positions(self) -> bool:
+        return True
+
+    @property
     def is_connected(self) -> bool:
         return self._connected and self._trading_client is not None
 
@@ -319,12 +323,13 @@ class AlpacaBroker(BaseBroker):
                 return [PositionInfo(
                     symbol=pos.symbol,
                     exchange=ExchangeType.ALPACA,
-                    quantity=float(pos.qty),
+                    quantity=abs(float(pos.qty)),
                     avg_price=float(pos.avg_entry_price),
                     current_price=float(pos.current_price),
                     unrealized_pnl=float(pos.unrealized_pl),
                     realized_pnl=float(pos.unrealized_plpc),
                     ticket=str(pos.asset_id),
+                    side=str(getattr(pos.side, "value", pos.side)).lower(),
                 )] if pos else []
 
             positions_raw = self._trading_client.get_all_positions()
@@ -333,12 +338,13 @@ class AlpacaBroker(BaseBroker):
                 result.append(PositionInfo(
                     symbol=pos.symbol,
                     exchange=ExchangeType.ALPACA,
-                    quantity=float(pos.qty),
+                    quantity=abs(float(pos.qty)),
                     avg_price=float(pos.avg_entry_price),
                     current_price=float(pos.current_price),
                     unrealized_pnl=float(pos.unrealized_pl),
                     realized_pnl=float(pos.unrealized_plpc),
                     ticket=str(pos.asset_id),
+                    side=str(getattr(pos.side, "value", pos.side)).lower(),
                 ))
             return result
 
@@ -361,6 +367,11 @@ class AlpacaBroker(BaseBroker):
 
             order = self._trading_client.close_position(target.symbol)
             now = datetime.now(timezone.utc)
+            close_side = (
+                OrderSide.BUY
+                if target.side in {"sell", "short"}
+                else OrderSide.SELL
+            )
             filled_qty = float(_order_value(order, "filled_qty", 0) or 0)
             requested_qty = abs(target.quantity)
             status = _map_alpaca_order_status(
@@ -373,7 +384,7 @@ class AlpacaBroker(BaseBroker):
                 order_id=str(_order_value(order, "id", "")),
                 status=status,
                 symbol=target.symbol,
-                side=OrderSide.SELL,
+                side=close_side,
                 quantity=requested_qty,
                 filled_qty=abs(filled_qty),
                 price=target.current_price,
