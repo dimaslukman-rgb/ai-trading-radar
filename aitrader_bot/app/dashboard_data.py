@@ -1,7 +1,8 @@
 """Thread-safe shared data store for the web dashboard.
 
 Engine writes real-time data here; the web HTTP server reads from here.
-Expanded for AI Trading Radar with multi-factor confidence analysis.
+Expanded for AI Trading Radar with multi-factor confidence analysis
+and auto-update tracking.
 """
 
 from __future__ import annotations
@@ -9,6 +10,8 @@ from __future__ import annotations
 import threading
 from datetime import datetime
 from typing import Any
+
+from aitrader_bot.version import __version__ as _current_version
 
 _dashboard_data: dict[str, Any] = {
     "status": "stopped",
@@ -61,6 +64,23 @@ _dashboard_data: dict[str, Any] = {
         "macd": False,
         "fvg": False,
         "news_clear": True,
+    },
+    # ── Auto-Update ─────────────────────────────────────────────────
+    "update": {
+        "current_version": _current_version,
+        "latest_version": "",
+        "update_available": False,
+        "download_url": "",
+        "release_notes": "",
+        "release_date": "",
+        "asset_name": "",
+        "asset_size": 0,
+        "download_progress": 0.0,
+        "download_complete": False,
+        "downloading": False,
+        "error": "",
+        "last_checked": "Never",
+        "status": "idle",
     },
 }
 
@@ -132,6 +152,12 @@ def add_trade(action: str, symbol: str, price: float, qty: float,
             _dashboard_data["trades"] = _dashboard_data["trades"][-100:]
 
 
+def update_update_state(update_data: dict) -> None:
+    """Update the auto-update section of dashboard data."""
+    with _lock:
+        _dashboard_data["update"].update(update_data)
+
+
 def snapshot() -> dict[str, Any]:
     """Return a thread-safe copy of all current data."""
     with _lock:
@@ -171,4 +197,6 @@ def snapshot() -> dict[str, Any]:
             "volatility": _dashboard_data["volatility"],
             "news_events": list(_dashboard_data["news_events"]),
             "analysis": dict(_dashboard_data["analysis"]),
+            # ── Auto-Update ────────────────────────────────────────
+            "update": dict(_dashboard_data["update"]),
         }

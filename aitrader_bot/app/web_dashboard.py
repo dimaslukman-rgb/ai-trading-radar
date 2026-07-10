@@ -27,6 +27,22 @@ log = logging.getLogger(__name__)
 _sse_clients: list[threading.Event] = []
 _sse_lock = threading.Lock()
 
+# ── Updater bridge ───────────────────────────────────────────────────
+_update_state_snapshot: dict | None = None
+_update_lock = threading.Lock()
+
+
+def _pull_update_state() -> dict:
+    """Pull latest state from the updater module and cache it in dashboard_data."""
+    try:
+        from aitrader_bot.updater import get_state
+        st = get_state()
+        data = st.to_dict()
+        dd.update_update_state(data)
+        return data
+    except Exception:
+        return {}
+
 # ── Template loading ─────────────────────────────────────────────────
 _TEMPLATE_PATH = os.path.join(os.path.dirname(__file__), "dashboard_template.html")
 _cached_html: str | None = None
@@ -75,8 +91,20 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self._serve_sse()
         elif self.path == "/api/logs":
             self._serve_logs()
+        elif self.path == "/api/update/status":
+            self._serve_update_status()
         elif self.path.startswith("/api/"):
             self._json_response(404, {"error": "not found"})
+        else:
+            self._json_response(404, {"error": "not found"})
+
+    def do_POST(self) -> None:
+        if self.path == "/api/update/check":
+            self._handle_update_check()
+        elif self.path == "/api/update/download":
+            self._handle_update_download()
+        elif self.path == "/api/update/apply":
+            self._handle_update_apply()
         else:
             self._json_response(404, {"error": "not found"})
 
@@ -93,6 +121,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
     # ── JSON Status API ───────────────────────────────────────────────
 
     def _serve_status(self) -> None:
+        _pull_update_state()
         data = dd.snapshot()
         self._json_response(200, data)
 
@@ -105,6 +134,71 @@ class DashboardHandler(BaseHTTPRequestHandler):
             "trades": data["trades"],
         })
 
+    # ── Update API ─────────────────────────────────────────────────────
+
+    def _serve_update_status(self) -> None:
+        """Return latest update state as JSON."""
+        _pull_update_state()
+        data = dd.snapshot()
+        self._json_response(200, data.get("update", {}))
+
+    def _handle_update_check(self) -> None:
+        """Force an immediate update check."""
+        try:
+            from aitrader_bot.updater import check_for_update
+            info = check_for_update()
+            _pull_update_state()
+            if info:
+                self._json_response(200, {"success": True, "update_available": True,
+                    "latest_version": info.latest_version, "current_version": info.current_version})
+            else:
+                self._json_response(200, {"success": True, "update_available": False})
+        except Exception as e:
+            self._json_response(500, {"success": False, "error": str(e)})
+
+    def _handle_update_download(self) -> None:
+        """Start downloading the update installer."""
+        try:
+            from aitrader_bot.updater import get_state, download_update, UpdateInfo
+            state = get_state()
+            if not state.update_available:
+                self._json_response(400, {"success": False, "error": "No update available"})
+                return
+            # Build UpdateInfo from current state
+            import threading as _thr
+            info = UpdateInfo(
+                latest_version=state.latest_version,
+                current_version=state.current_version,
+                download_url=state.download_url,
+                release_notes=state.release_notes,
+                release_date=state.release_date,
+                asset_name=state.asset_name,
+                asset_size=state.asset_size,
+            )
+
+            def _bg_dl():
+                download_update(info, progress_callback=lambda p: _pull_update_state())
+                _pull_update_state()
+                notify_clients()
+
+            _thr.Thread(target=_bg_dl, daemon=True).start()
+            self._json_response(200, {"success": True, "message": "Download started"})
+        except Exception as e:
+            self._json_response(500, {"success": False, "error": str(e)})
+
+    def _handle_update_apply(self) -> None:
+        """Launch the downloaded installer to apply the update."""
+        try:
+            from aitrader_bot.updater import get_state, apply_update
+            state = get_state()
+            if not state.download_path:
+                self._json_response(400, {"success": False, "error": "No download available"})
+                return
+            ok = apply_update(state.download_path)
+            self._json_response(200, {"success": ok})
+        except Exception as e:
+            self._json_response(500, {"success": False, "error": str(e)})
+
     # ── Server-Sent Events (real-time streaming) ──────────────────────
 
     def _serve_sse(self) -> None:
@@ -115,7 +209,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
 
-        # Send initial snapshot
+        # Send initial snapshot (with update state pulled)
+        _pull_update_state()
         snap = dd.snapshot()
         self._sse_send("init", json.dumps(snap))
 
@@ -128,6 +223,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             while not client_event.is_set():
                 if client_event.wait(timeout=3):
                     # New data available — send full snapshot
+                    _pull_update_state()
                     snap = dd.snapshot()
                     self._sse_send("update", json.dumps(snap))
                     client_event.clear()

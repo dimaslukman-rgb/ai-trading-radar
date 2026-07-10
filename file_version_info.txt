@@ -1,0 +1,46 @@
+# UTF-8
+#
+# For more details about fixed file info 'ffi' see:
+# https://learn.microsoft.com/en-us/windows/win32/menurc/versioninfo-resource
+#
+# NOTE: This file is read by build_exe.bat. Update the version number
+#       in aitrader_bot/version.py, then regenerate this file with:
+#       python -c "import sys; sys.path.insert(0,'.'); exec(open('aitrader_bot/version.py').read()); print(f'VSVersionInfo(ffi=FixedFileInfo(filevers=({VERSION_MAJOR},{VERSION_MINOR},{VERSION_PATCH},0),prodvers=({VERSION_MAJOR},{VERSION_MINOR},{VERSION_PATCH},0)),\
+# langids=[{'en':0x0409}],\
+# StringFileInfo=[StringFileInfo(\
+#   '040904B0',\
+#   [StringStruct('CompanyName','AI Trading Radar'),\
+#    StringStruct('FileDescription','AI Trading Radar'),\
+#    StringStruct('FileVersion','{__version__}'),\
+#    StringStruct('InternalName','AITradingRadar'),\
+#    StringStruct('LegalCopyright',''),\
+#    StringStruct('OriginalFilename','AITradingRadar.exe'),\
+#    StringStruct('ProductName','AI Trading Radar'),\
+#    StringStruct('ProductVersion','{__version__}')])],\
+# VarFileInfo=[VarFileInfo('Translation',[0x0409,0x04B0])])"
+
+VSVersionInfo(
+  ffi=FixedFileInfo(
+    filevers=(1, 2, 0, 0),
+    prodvers=(1, 2, 0, 0)
+  ),
+  langids=[{'en': 0x0409}],
+  StringFileInfo=[
+    StringFileInfo(
+      '040904B0',
+      [
+        StringStruct('CompanyName', 'AI Trading Radar'),
+        StringStruct('FileDescription', 'AI Trading Radar'),
+        StringStruct('FileVersion', '1.2.0'),
+        StringStruct('InternalName', 'AITradingRadar'),
+        StringStruct('LegalCopyright', ''),
+        StringStruct('OriginalFilename', 'AITradingRadar.exe'),
+        StringStruct('ProductName', 'AI Trading Radar'),
+        StringStruct('ProductVersion', '1.2.0')
+      ]
+    )
+  ],
+  VarFileInfo=[
+    VarFileInfo('Translation', [0x0409, 0x04B0])
+  ]
+)

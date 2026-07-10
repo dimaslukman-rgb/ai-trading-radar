@@ -186,6 +186,30 @@ tr:hover{background:rgba(0,255,136,.02)}
 <body>
 <div class="container">
 
+<!-- ═══ UPDATE NOTIFICATION BANNER ═════════════════════════ -->
+<div id="updateBanner" style="display:none;background:linear-gradient(135deg,rgba(0,212,255,.12) 0%,rgba(0,255,136,.12) 100%);border:1px solid var(--cyan);border-radius:10px;padding:12px 20px;margin-bottom:16px;align-items:center;justify-content:space-between;animation:fadeIn .3s ease">
+  <div style="display:flex;align-items:center;gap:12px">
+    <span style="font-size:1.5rem">🔄</span>
+    <div>
+      <div style="font-weight:700;font-size:.9rem" id="updateTitle">Update v2.0.0 Tersedia!</div>
+      <div style="font-size:.75rem;color:var(--text2);margin-top:2px" id="updateDesc">Klik Install untuk memperbarui AI Trading Radar</div>
+      <div style="font-size:.7rem;color:var(--text3);margin-top:2px" id="updateSize"></div>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center">
+    <div id="updateProgressWrap" style="display:none;width:120px">
+      <div style="height:4px;background:var(--bg3);border-radius:2px;overflow:hidden">
+        <div id="updateProgressBar" style="height:100%;width:0%;background:var(--cyan);border-radius:2px;transition:width .3s"></div>
+      </div>
+      <div style="font-size:.65rem;color:var(--text3);text-align:center;margin-top:2px" id="updateProgressText">0%</div>
+    </div>
+    <button id="updateInstallBtn" onclick="doUpdateInstall()" style="padding:8px 20px;background:var(--cyan);color:#000;border:none;border-radius:6px;font-weight:700;font-size:.8rem;cursor:pointer;display:none">⬇ INSTALL</button>
+    <button id="updateDownloadBtn" onclick="doUpdateDownload()" style="padding:8px 20px;background:var(--green);color:#000;border:none;border-radius:6px;font-weight:700;font-size:.8rem;cursor:pointer">📥 DOWNLOAD</button>
+    <button id="updateLaterBtn" onclick="dismissUpdate()" style="padding:8px 14px;background:transparent;color:var(--text3);border:1px solid var(--border);border-radius:6px;font-size:.8rem;cursor:pointer">Nanti</button>
+    <span id="updateCheckSpinner" style="display:none;font-size:.8rem;color:var(--text3)">⏳ Memeriksa...</span>
+  </div>
+</div>
+
 <!-- ═══ HEADER ═══════════════════════════════════════════════ -->
 <div class="header">
   <div class="header-left">
@@ -390,6 +414,106 @@ tr:hover{background:rgba(0,255,136,.02)}
 
 <script src="https://s3.tradingview.com/tv.js"></script>
 <script>
+// ── Auto-Update System ──────────────────────────────────────
+let updateState = {};
+
+function showUpdateBanner(state) {
+  const banner = $('updateBanner');
+  if (!state.update_available) {
+    banner.style.display = 'none';
+    return;
+  }
+  updateState = state;
+  banner.style.display = 'flex';
+  $('updateTitle').textContent = `🔄 Update v${state.latest_version} Tersedia!`;
+  $('updateDesc').textContent = `v${state.current_version} → v${state.latest_version} — Klik Download untuk memperbarui`;
+  if (state.asset_size > 0) {
+    const mb = (state.asset_size / 1024 / 1024).toFixed(1);
+    $('updateSize').textContent = `${state.asset_name} (${mb} MB)`;
+  }
+  // Show download or install button based on state
+  if (state.download_complete && state.download_path) {
+    $('updateDownloadBtn').style.display = 'none';
+    $('updateInstallBtn').style.display = 'inline-block';
+    $('updateProgressWrap').style.display = 'none';
+  } else if (state.downloading) {
+    $('updateDownloadBtn').style.display = 'none';
+    $('updateInstallBtn').style.display = 'none';
+    $('updateProgressWrap').style.display = 'block';
+  } else {
+    $('updateDownloadBtn').style.display = 'inline-block';
+    $('updateInstallBtn').style.display = 'none';
+    $('updateProgressWrap').style.display = 'none';
+  }
+}
+
+function updateProgressUI(state) {
+  if (state.downloading && state.download_progress > 0) {
+    const pct = Math.min(100, Math.round(state.download_progress));
+    $('updateProgressBar').style.width = pct + '%';
+    $('updateProgressText').textContent = pct + '%';
+  }
+  if (state.download_complete && state.download_path) {
+    $('updateDownloadBtn').style.display = 'none';
+    $('updateInstallBtn').style.display = 'inline-block';
+    $('updateProgressWrap').style.display = 'none';
+  }
+}
+
+function dismissUpdate() {
+  $('updateBanner').style.display = 'none';
+}
+
+async function doUpdateDownload() {
+  $('updateCheckSpinner').style.display = 'inline';
+  $('updateDownloadBtn').disabled = true;
+  try {
+    const resp = await fetch('/api/update/download', { method: 'POST' });
+    const data = await resp.json();
+    if (data.success) {
+      $('updateDownloadBtn').style.display = 'none';
+      $('updateProgressWrap').style.display = 'block';
+      $('updateProgressText').textContent = 'Memulai...';
+    } else {
+      alert('Download gagal: ' + (data.error || 'unknown'));
+    }
+  } catch (e) {
+    alert('Download error: ' + e.message);
+  } finally {
+    $('updateCheckSpinner').style.display = 'none';
+    $('updateDownloadBtn').disabled = false;
+  }
+}
+
+async function doUpdateInstall() {
+  if (!confirm('Instal update sekarang? Aplikasi akan menutup dan installer akan terbuka.')) return;
+  try {
+    const resp = await fetch('/api/update/apply', { method: 'POST' });
+    const data = await resp.json();
+    if (data.success) {
+      $('updateInstallBtn').textContent = '✅ INSTALLER DIBUKA';
+      $('updateInstallBtn').disabled = true;
+    } else {
+      alert('Gagal membuka installer: ' + (data.error || 'unknown'));
+    }
+  } catch (e) {
+    alert('Install error: ' + e.message);
+  }
+}
+
+// Check for updates on startup
+async function checkUpdateOnStartup() {
+  try {
+    const resp = await fetch('/api/update/status');
+    const state = await resp.json();
+    if (state.update_available) {
+      showUpdateBanner(state);
+    }
+  } catch (e) { /* silent */ }
+}
+// Run check after initial load
+setTimeout(checkUpdateOnStartup, 3000);
+
 // ── TradingView XAUUSD Widget ────────────────────────────
 function initTradingView() {
   if (typeof TradingView === 'undefined') {
@@ -498,6 +622,14 @@ function buildExplanation(analysis, action, conf) {
 // ── Main update function ─────────────────────────────────────
 function updateUI(data) {
   if (!data) return;
+
+  // ── Update banner (from update SSE data) ──────────────────
+  if (data.update) {
+    if (data.update.update_available) {
+      showUpdateBanner(data.update);
+      updateProgressUI(data.update);
+    }
+  }
 
   // Equity & Balance header
   if (data.equity != null) {

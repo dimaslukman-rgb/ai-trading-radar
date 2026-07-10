@@ -1,5 +1,5 @@
-﻿#!/usr/bin/env python3
-"""AI Trading Radar â€” Windows Desktop Application.
+#!/usr/bin/env python3
+"""AI Trading Radar — Windows Desktop Application.
 
 Usage:
     python run_scalping.py                    # Tray + Dashboard mode
@@ -8,6 +8,8 @@ Usage:
     python run_scalping.py --no-gui --no-tray # CLI mode
     python run_scalping.py --broker mt5 --auto-start  # Finex auto-start
     python run_scalping.py --config config_finex.json --broker mt5 --no-gui
+    python run_scalping.py --check-update     # Check for updates
+    python run_scalping.py --version          # Show version info
 """
 
 from __future__ import annotations
@@ -72,7 +74,24 @@ def main():
                         help="Tampilkan status serial key lalu keluar")
     parser.add_argument("--reset-license", action="store_true",
                         help="Hapus serial key tersimpan lalu keluar")
+    # Update System
+    parser.add_argument("--check-update", action="store_true",
+                        help="Periksa update versi terbaru via GitHub Releases")
+    parser.add_argument("--version", action="store_true",
+                        help="Tampilkan versi aplikasi saat ini")
     args = parser.parse_args()
+
+    # Handle version flag early
+    if args.version:
+        from aitrader_bot.version import version_info_text
+        print(version_info_text())
+        return
+
+    # Handle update check flag early
+    if args.check_update:
+        from aitrader_bot.updater import check_text
+        print(check_text())
+        return
 
     from aitrader_bot.licensing import (
         LicenseError,
@@ -102,6 +121,7 @@ def main():
 
     from aitrader_bot.app.engine import TradingEngine
     from aitrader_bot.app.logger import setup_logging
+    from aitrader_bot.version import __version__
 
     log = setup_logging(__name__, level=20)  # INFO
 
@@ -116,14 +136,15 @@ def main():
         sys.exit(1)
 
     log.info("=== AI Trading Radar Starting ===")
+    log.info(f"Version: {__version__}")
     log.info(f"Config: {config_path}")
     log.info(f"Broker: {args.broker}")
     log.info(f"License: {license_info.plan_label}, expires {license_info.expires_label}, id {license_info.license_id}")
 
-    # â”€â”€ Initialize Engine â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # Initialize Engine
     engine = TradingEngine(str(config_path), args.broker)
 
-    # â”€â”€ Start Web Dashboard (always, browser-based) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # Start Web Dashboard (always, browser-based)
     from aitrader_bot.app.web_dashboard import start_web_dashboard
     web_server = None
     for port in list(range(9190, 9200)) + list(range(9090, 9100)):
@@ -136,7 +157,13 @@ def main():
     if web_server is None:
         log.warning("Web dashboard: no available port (tried 8080-8083)")
 
-    # â”€â”€ Start GUI Dashboard (optional, PyQt6) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # Start Background Update Checker
+    from aitrader_bot.updater import UpdateChecker
+    update_checker = UpdateChecker()
+    update_checker.start()
+    log.info("Background update checker started")
+
+    # Start GUI Dashboard (optional, PyQt6)
     dashboard = None
     if not args.no_gui:
         try:
@@ -152,7 +179,7 @@ def main():
     # Tentukan apakah dashboard bisa dibuat ulang dari tray
     _dashboard_enabled = not args.no_gui
 
-    # â”€â”€ Start System Tray (optional) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # Start System Tray (optional)
     tray = None
     if not args.no_tray:
         try:
@@ -190,12 +217,12 @@ def main():
             log.warning(f"System tray failed: {e}")
             tray = None
 
-    # â”€â”€ Auto-start if requested â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # Auto-start if requested
     if args.auto_start:
         log.info("Auto-start enabled - starting engine")
         engine.start()
 
-    # â”€â”€ CLI mode (no GUI, no tray) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # CLI mode (no GUI, no tray)
     if args.no_gui and args.no_tray:
         print("AI Trading Radar - CLI Mode")
         print(f"  Config: {config_path}")
@@ -234,15 +261,15 @@ def main():
             engine.stop()
         return
 
-    # â”€â”€ Normal mode â€” keep alive â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # Normal mode — keep alive
     try:
         if dashboard and hasattr(dashboard, "_app"):
-            # Prevent Qt from quitting when window is hidden (close â†’ hide)
+            # Prevent Qt from quitting when window is hidden (close → hide)
             dashboard._app.setQuitOnLastWindowClosed(False)
-            # Run Qt event loop â€” blocks until QApplication.quit() is called
-            # Does NOT sys.exit() â€” program keeps running
+            # Run Qt event loop — blocks until QApplication.quit() is called
+            # Does NOT sys.exit() — program keeps running
             dashboard._app.exec()
-            log.info("Dashboard PyQt event loop ended â€” engine continues")
+            log.info("Dashboard PyQt event loop ended — engine continues")
 
         # Keep-alive loop
         while True:
@@ -252,13 +279,13 @@ def main():
         log.info("Shutdown by user")
     finally:
         engine.stop()
+        update_checker.stop()
         if tray:
             tray.stop()
         if web_server:
             web_server.shutdown()
-        log.info("=== AI Trading Radar Stopped ===")
+        log.info(f"=== AI Trading Radar v{__version__} Stopped ===")
 
 
 if __name__ == "__main__":
     main()
-
