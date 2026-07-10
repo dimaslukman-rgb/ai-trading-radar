@@ -23,6 +23,13 @@ from . import dashboard_data as dd
 
 log = logging.getLogger(__name__)
 
+# Import the MT5 broker to handle account operations
+try:
+    from aitrader_bot.broker.mt5_broker import Mt5Broker
+except ImportError:
+    Mt5Broker = None
+    log.warning("MT5 broker not available - account management features disabled")
+
 # ── SSE client tracking ──────────────────────────────────────────────
 _sse_clients: list[threading.Event] = []
 _sse_lock = threading.Lock()
@@ -82,8 +89,20 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self._serve_sse()
         elif self.path == "/api/logs":
             self._serve_logs()
+        elif self.path == "/api/mt5/status":
+            self._serve_mt5_status()
         elif self.path.startswith("/api/"):
             self._json_response(404, {"error": "not found"})
+        else:
+            self._json_response(404, {"error": "not found"})
+
+    def do_POST(self) -> None:
+        if self.path == "/api/mt5/login":
+            self._handle_mt5_login()
+        elif self.path == "/api/mt5/logout":
+            self._handle_mt5_logout()
+        elif self.path == "/api/mt5/forgot_password":
+            self._handle_mt5_forgot_password()
         else:
             self._json_response(404, {"error": "not found"})
 
@@ -166,6 +185,147 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.wfile.write(body)
         except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError, OSError):
             pass
+
+    def _read_post_data(self) -> dict:
+        """Read and parse JSON POST data."""
+        content_length = int(self.headers.get("Content-Length", 0))
+        if content_length == 0:
+            return {}
+        try:
+            post_data = self.rfile.read(content_length)
+            return json.loads(post_data.decode("utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError, ConnectionError):
+            return {}
+
+    # ── MT5 Account Management ─────────────────────────────────────────
+
+    def _serve_mt5_status(self) -> None:
+        """Serve current MT5 connection status."""
+        data = dd.snapshot()
+        mt5_status = {
+            "connected": data["mt5_connected"],
+            "login": data["mt5_login"],
+            "server": data["mt5_server"],
+            "account_info": data["mt5_account_info"],
+            "last_error": data["mt5_last_error"]
+        }
+        self._json_response(200, mt5_status)
+
+    def _handle_mt5_login(self) -> None:
+        """Handle MT5 login request."""
+        if Mt5Broker is None:
+            self._json_response(500, {"success": False, "error": "MT5 broker not available"})
+            return
+
+        post_data = self._read_post_data()
+        server = post_data.get("server", "")
+        login = post_data.get("login")
+        password = post_data.get("password", "")
+
+        if not server or login is None or not password:
+            self._json_response(400, {"success": False, "error": "Missing server, login, or password"})
+            return
+
+        try:
+            # Convert login to int if it's a string
+            if isinstance(login, str):
+                login = int(login)
+
+            # Create new MT5 broker instance and connect
+            broker = Mt5Broker(server=server, login=login, password=password)
+            success = broker.connect()
+
+            if success:
+                # Get account info
+                account_info = broker.get_account()
+                account_info_dict = {
+                    "balance": account_info.balance,
+                    "equity": account_info.equity,
+                    "margin": account_info.margin,
+                    "margin_free": account_info.margin_free,
+                    "leverage": account_info.leverage,
+                    "currency": account_info.currency
+                }
+
+                # Update dashboard data
+                dd.update_mt5_status(
+                    connected=True,
+                    login=login,
+                    server=server,
+                    account_info=account_info_dict
+                )
+                dd.add_log(f"MT5 login successful: {login} on {server}")
+                self._json_response(200, {"success": True, "account_info": account_info_dict})
+            else:
+                error_msg = "MT5 connection failed"
+                dd.update_mt5_status(connected=False, last_error=error_msg)
+                dd.add_log(f"MT5 login failed: {error_msg}")
+                self._json_response(500, {"success": False, "error": error_msg})
+
+        except Exception as e:
+            error_msg = f"MT5 login error: {str(e)}"
+            dd.update_mt5_status(connected=False, last_error=error_msg)
+            dd.add_log(f"MT5 login error: {error_msg}")
+            self._json_response(500, {"success": False, "error": error_msg})
+
+    def _handle_mt5_logout(self) -> None:
+        """Handle MT5 logout request."""
+        if Mt5Broker is None:
+            self._json_response(500, {"success": False, "error": "MT5 broker not available"})
+            return
+
+        try:
+            # Create a temporary broker instance to disconnect
+            broker = Mt5Broker()
+            broker.disconnect()
+
+            # Update dashboard data
+            dd.update_mt5_status(
+                connected=False,
+                login=None,
+                server="",
+                account_info=None,
+                last_error=""
+            )
+            dd.add_log("MT5 logout successful")
+            self._json_response(200, {"success": True})
+
+        except Exception as e:
+            error_msg = f"MT5 logout error: {str(e)}"
+            dd.update_mt5_status(connected=False, last_error=error_msg)
+            dd.add_log(f"MT5 logout error: {error_msg}")
+            self._json_response(500, {"success": False, "error": error_msg})
+
+    def _handle_mt5_forgot_password(self) -> None:
+        """Handle MT5 password reset request."""
+        if Mt5Broker is None:
+            self._json_response(500, {"success": False, "error": "MT5 broker not available"})
+            return
+
+        post_data = self._read_post_data()
+        email = post_data.get("email", "")
+        login = post_data.get("login")
+
+        if not email or login is None:
+            self._json_response(400, {"success": False, "error": "Missing email or login"})
+            return
+
+        try:
+            # Note: In a real implementation, this would connect to the broker's
+            # password reset API. For this demo, we'll simulate a success response.
+            # Actual MT5 password reset would require broker-specific implementation.
+
+            # Simulate password reset request
+            dd.add_log(f"Password reset requested for login {login}")
+            self._json_response(200, {
+                "success": True,
+                "message": "If the email and login match our records, a password reset link has been sent."
+            })
+
+        except Exception as e:
+            error_msg = f"Password reset error: {str(e)}"
+            dd.add_log(f"Password reset error: {error_msg}")
+            self._json_response(500, {"success": False, "error": error_msg})
 
 
 # ── Notify SSE clients ────────────────────────────────────────────────

@@ -92,12 +92,41 @@ class Mt5Broker(BaseBroker):
         return True
 
     def disconnect(self) -> None:
+        """Disconnect from MT5 terminal."""
         if self._mt5:
             try:
                 self._mt5.shutdown()
             except Exception:
                 pass
         self._connected = False
+
+    def get_connection_status(self) -> dict:
+        """Get current connection status and account information."""
+        status = {
+            "connected": self.is_connected,
+            "login": self._login,
+            "server": self._server,
+            "last_error": ""
+        }
+
+        if not self.is_connected:
+            return status
+
+        try:
+            account_info = self.get_account()
+            status["account_info"] = {
+                "balance": account_info.balance,
+                "equity": account_info.equity,
+                "margin": account_info.margin,
+                "margin_free": account_info.margin_free,
+                "leverage": account_info.leverage,
+                "currency": account_info.currency
+            }
+        except Exception as e:
+            status["last_error"] = str(e)
+            status["connected"] = False
+
+        return status
 
     # ── Symbol mapping ─────────────────────────────────────────────────
 

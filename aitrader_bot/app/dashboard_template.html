@@ -213,27 +213,34 @@ tr:hover{background:rgba(0,255,136,.02)}
     <div class="radar-icon">📡</div>
     <h1>AI TRADING RADAR<small>Professional Multi-Factor Analysis Engine</small></h1>
   </div>
-  <div class="header-right">
-    <div style="text-align:right;margin-right:12px">
-      <div class="label" style="font-size:.65rem;margin-bottom:1px">TOTAL EQUITY</div>
-      <div class="value green" id="headerEquity" style="font-size:1.1rem">$0.00</div>
+    <div class="header-right">
+      <div style="text-align:right;margin-right:12px">
+        <div class="label" style="font-size:.65rem;margin-bottom:1px">TOTAL EQUITY</div>
+        <div class="value green" id="headerEquity" style="font-size:1.1rem">$0.00</div>
+      </div>
+      <div style="text-align:right;margin-right:12px">
+        <div class="label" style="font-size:.65rem;margin-bottom:1px">BALANCE</div>
+        <div class="value cyan" id="headerBalance" style="font-size:1.1rem">$0.00</div>
+      </div>
+      <div style="text-align:right;margin-right:12px">
+        <div class="label" style="font-size:.65rem;margin-bottom:1px">% P/L</div>
+        <div class="value green" id="headerPL" style="font-size:1.1rem">+0.00%</div>
+      </div>
+      <div style="text-align:right;margin-right:12px">
+        <div class="label" style="font-size:.65rem;margin-bottom:1px">DRAWDOWN</div>
+        <div class="value green" id="headerDD" style="font-size:1.1rem">0.00%</div>
+      </div>
+      <div style="margin-right:8px;text-align:right">
+        <div class="label" style="font-size:.6rem;margin-bottom:1px;color:var(--text3)">MT5 ACCOUNT</div>
+        <div class="value" id="mt5AccountDisplay" style="font-size:.85rem;color:var(--cyan)">—</div>
+        <div class="label" style="font-size:.6rem;margin-top:2px;color:var(--text3)">SERVER</div>
+        <div class="value" id="mt5ServerDisplay" style="font-size:.85rem;color:var(--yellow)">—</div>
+      </div>
+      <span id="mt5StatusBadge" style="padding:4px 10px;border-radius:20px;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;background:rgba(100,116,139,.15);color:var(--text3);border:1px solid rgba(100,116,139,.3)">DISCONNECTED</span>
+      <span id="modeBadge" style="padding:4px 10px;border-radius:20px;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;background:rgba(255,68,68,.15);color:var(--red);border:1px solid rgba(255,68,68,.3);display:none">⚡AGGRESSIVE</span>
+      <span class="status-badge" id="statusBadge">STOPPED</span>
+      <span class="clock" id="clock">--:--:--</span>
     </div>
-    <div style="text-align:right;margin-right:12px">
-      <div class="label" style="font-size:.65rem;margin-bottom:1px">BALANCE</div>
-      <div class="value cyan" id="headerBalance" style="font-size:1.1rem">$0.00</div>
-    </div>
-    <div style="text-align:right;margin-right:12px">
-      <div class="label" style="font-size:.65rem;margin-bottom:1px">% P/L</div>
-      <div class="value green" id="headerPL" style="font-size:1.1rem">+0.00%</div>
-    </div>
-    <div style="text-align:right;margin-right:12px">
-      <div class="label" style="font-size:.65rem;margin-bottom:1px">DRAWDOWN</div>
-      <div class="value green" id="headerDD" style="font-size:1.1rem">0.00%</div>
-    </div>
-    <span id="modeBadge" style="padding:4px 10px;border-radius:20px;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;background:rgba(255,68,68,.15);color:var(--red);border:1px solid rgba(255,68,68,.3);display:none">⚡AGGRESSIVE</span>
-    <span class="status-badge" id="statusBadge">STOPPED</span>
-    <span class="clock" id="clock">--:--:--</span>
-  </div>
 </div>
 
 <!-- ═══ XAUUSD REAL-TIME CHART ═══════════════════════════════ -->
@@ -438,6 +445,80 @@ tr:hover{background:rgba(0,255,136,.02)}
 
 </div><!-- /container -->
 
+<!-- MT5 Account Management Modal -->
+<div id="mt5Modal" class="modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.8);z-index:1000;justify-content:center;align-items:center">
+  <div class="modal-content" style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:24px;width:400px;max-width:90%;position:relative">
+    <span id="closeModal" style="position:absolute;top:12px;right:16px;font-size:1.5rem;cursor:pointer;color:var(--text3)">&times;</span>
+
+    <h2 style="margin-bottom:20px;color:var(--text);text-align:center">MT5 Account Management</h2>
+
+    <div id="mt5LoginSection">
+      <div class="label" style="margin-bottom:8px">Server</div>
+      <input type="text" id="mt5Server" placeholder="e.g. Finex-Demo" style="width:100%;padding:10px;margin-bottom:12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text)">
+
+      <div class="label" style="margin-bottom:8px">Login</div>
+      <input type="text" id="mt5Login" placeholder="Account number" style="width:100%;padding:10px;margin-bottom:12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text)">
+
+      <div class="label" style="margin-bottom:8px">Password</div>
+      <input type="password" id="mt5Password" placeholder="Password" style="width:100%;padding:10px;margin-bottom:16px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text)">
+
+      <button id="mt5LoginBtn" style="width:100%;padding:12px;background:var(--green);color:#000;border:none;border-radius:6px;font-weight:700;cursor:pointer;margin-bottom:8px">LOGIN</button>
+
+      <div style="text-align:center;margin-bottom:16px">
+        <a href="#" id="forgotPasswordLink" style="color:var(--cyan);text-decoration:none;font-size:.8rem">Forgot password?</a>
+      </div>
+    </div>
+
+    <div id="mt5ForgotPasswordSection" style="display:none">
+      <div class="label" style="margin-bottom:8px">Registered Email</div>
+      <input type="email" id="mt5Email" placeholder="your@email.com" style="width:100%;padding:10px;margin-bottom:12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text)">
+
+      <div class="label" style="margin-bottom:8px">Account Login</div>
+      <input type="text" id="mt5ForgotLogin" placeholder="Account number" style="width:100%;padding:10px;margin-bottom:16px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text)">
+
+      <button id="mt5ResetBtn" style="width:100%;padding:12px;background:var(--yellow);color:#000;border:none;border-radius:6px;font-weight:700;cursor:pointer;margin-bottom:8px">SEND RESET LINK</button>
+
+      <div style="text-align:center">
+        <a href="#" id="backToLoginLink" style="color:var(--cyan);text-decoration:none;font-size:.8rem">Back to login</a>
+      </div>
+    </div>
+
+    <div id="mt5AccountInfo" style="display:none;margin-top:16px;padding:12px;background:var(--bg);border-radius:6px;border:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+        <span class="label">Account:</span>
+        <span id="mt5AccountNumber" style="color:var(--cyan)">-</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+        <span class="label">Server:</span>
+        <span id="mt5AccountServer" style="color:var(--text2)">-</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+        <span class="label">Balance:</span>
+        <span id="mt5AccountBalance" style="color:var(--green)">$0.00</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+        <span class="label">Equity:</span>
+        <span id="mt5AccountEquity" style="color:var(--green)">$0.00</span>
+      </div>
+      <div style="display:flex;justify-content:space-between">
+        <span class="label">Leverage:</span>
+        <span id="mt5AccountLeverage" style="color:var(--text2)">1:100</span>
+      </div>
+      <button id="mt5LogoutBtn" style="width:100%;padding:10px;background:var(--red);color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;margin-top:16px">LOGOUT</button>
+    </div>
+
+    <div id="mt5Error" style="display:none;margin-top:16px;padding:10px;background:rgba(255,68,68,.15);border-radius:6px;border:1px solid rgba(255,68,68,.3);color:var(--red);font-size:.8rem"></div>
+    <div id="mt5Success" style="display:none;margin-top:16px;padding:10px;background:rgba(0,255,136,.15);border-radius:6px;border:1px solid rgba(0,255,136,.3);color:var(--green);font-size:.8rem"></div>
+  </div>
+</div>
+
+<!-- MT5 Account Button -->
+<div style="position:fixed;bottom:20px;right:20px;z-index:100">
+  <button id="mt5AccountBtn" style="background:var(--bg2);border:1px solid var(--border);border-radius:50%;width:50px;height:50px;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.3)">
+    <span style="font-size:1.5rem">👤</span>
+  </button>
+</div>
+
 <script src="https://s3.tradingview.com/tv.js"></script>
 <script>
 // ── TradingView XAUUSD Widget ────────────────────────────
@@ -597,11 +678,28 @@ function updateUI(data) {
     timeoutEl.style.display = 'none';
   }
 
+  // MT5 Account and Server display
+  const mt5Account = data.mt5_login || '—';
+  const mt5Server = data.mt5_server || '—';
+  $('mt5AccountDisplay').textContent = mt5Account;
+  $('mt5ServerDisplay').textContent = mt5Server;
+
   // Status badge
   const s = data.status || 'stopped';
   const badge = $('statusBadge');
   badge.textContent = s.toUpperCase();
   badge.className = 'status-badge ' + s;
+
+  // MT5 Connection status
+  const mt5Connected = data.mt5_connected || false;
+  const mt5StatusBadge = $('mt5StatusBadge');
+  if (mt5Connected) {
+    mt5StatusBadge.textContent = 'CONNECTED';
+    mt5StatusBadge.className = 'status-badge running';
+  } else {
+    mt5StatusBadge.textContent = 'DISCONNECTED';
+    mt5StatusBadge.className = 'status-badge stopped';
+  }
 
   // Radar card
   const pair = data.symbol || 'XAUUSD';

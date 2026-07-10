@@ -32,6 +32,12 @@ _dashboard_data: dict[str, Any] = {
     "aggressive_mode": False,
     "entry_time": None,
     "timeout_minutes": 0,
+    # ── MT5 Account Management ─────────────────────────────────────
+    "mt5_connected": False,
+    "mt5_login": None,
+    "mt5_server": "",
+    "mt5_account_info": None,
+    "mt5_last_error": "",
     # ── AI Trading Radar fields ────────────────────────────────────
     "confidence_pct": 0,
     "confidence_category": "NO TRADE",
@@ -152,6 +158,20 @@ def add_trade(action: str, symbol: str, price: float, qty: float,
         if len(_dashboard_data["trades"]) > 100:
             _dashboard_data["trades"] = _dashboard_data["trades"][-100:]
 
+def update_mt5_status(connected: bool, login: int | None = None, server: str = "",
+                    account_info: dict | None = None, last_error: str = "") -> None:
+    """Update MT5 connection status and account information."""
+    with _lock:
+        _dashboard_data["mt5_connected"] = connected
+        if login is not None:
+            _dashboard_data["mt5_login"] = login
+        if server:
+            _dashboard_data["mt5_server"] = server
+        if account_info is not None:
+            _dashboard_data["mt5_account_info"] = account_info
+        if last_error:
+            _dashboard_data["mt5_last_error"] = last_error
+
 
 def snapshot() -> dict[str, Any]:
     """Return a thread-safe copy of all current data."""
@@ -178,6 +198,12 @@ def snapshot() -> dict[str, Any]:
             "aggressive_mode": _dashboard_data["aggressive_mode"],
             "entry_time": _dashboard_data["entry_time"],
             "timeout_minutes": _dashboard_data["timeout_minutes"],
+            # ── MT5 Account Management ────────────────────────────
+            "mt5_connected": _dashboard_data["mt5_connected"],
+            "mt5_login": _dashboard_data["mt5_login"],
+            "mt5_server": _dashboard_data["mt5_server"],
+            "mt5_account_info": _dashboard_data["mt5_account_info"],
+            "mt5_last_error": _dashboard_data["mt5_last_error"],
             # ── AI Trading Radar ───────────────────────────────────
             "confidence_pct": _dashboard_data["confidence_pct"],
             "confidence_category": _dashboard_data["confidence_category"],

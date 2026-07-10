@@ -370,6 +370,45 @@ class TradingEngine:
         try:
             self.broker.connect()
             acct = self.broker.get_account()
+
+            # Update MT5 account information for dashboard
+            mt5_login = None
+            mt5_server = ""
+            account_info = None
+
+            if hasattr(self.broker, '_login') and self.broker._login is not None:
+                mt5_login = self.broker._login
+                mt5_server = getattr(self.broker, '_server', "")
+
+                # Get account info for dashboard
+                account_info = {
+                    "balance": acct.balance,
+                    "equity": acct.equity,
+                    "margin": acct.margin,
+                    "margin_free": acct.margin_free,
+                    "leverage": acct.leverage,
+                    "currency": acct.currency
+                }
+
+                log.info(f"MT5 Account Info - Login: {mt5_login}, Server: {mt5_server}")
+                log.info(f"MT5 Account Details - Balance: {acct.balance}, Equity: {acct.equity}, Currency: {acct.currency}")
+
+                # Update dashboard data with MT5 connection info
+                dd.update_mt5_status(
+                    connected=True,
+                    login=mt5_login,
+                    server=mt5_server,
+                    account_info=account_info
+                )
+            else:
+                log.warning("MT5 broker does not have login information")
+                dd.update_mt5_status(
+                    connected=True,
+                    login=None,
+                    server="",
+                    account_info=None
+                )
+
             dd.reset_account_metrics(acct.equity, acct.balance)
             self._put(f"account:{acct.equity}")
             self._put("status:running")
@@ -382,11 +421,22 @@ class TradingEngine:
             notify_web()
             tg.send_startup(symbol, self._broker_name, acct.equity)
         except Exception as e:
-            self._put(f"error:koneksi gagal: {e}")
+            error_msg = f"Koneksi gagal: {e}"
+            self._put(f"error:{error_msg}")
             tg.send_error(f"Connection failed: {e}")
-            log.error(f"Koneksi gagal: {e}")
+            log.error(error_msg)
+
+            # Update MT5 status to disconnected
+            dd.update_mt5_status(
+                connected=False,
+                login=None,
+                server="",
+                account_info=None,
+                last_error=str(e)
+            )
+
             dd.update(status="error")
-            dd.add_log(f"ERROR: Connection failed: {e}")
+            dd.add_log(f"ERROR: {error_msg}")
             notify_web()
             self._current_status = "error"
             return
@@ -728,6 +778,15 @@ class TradingEngine:
         tg.send_shutdown("engine stopped")
         log.info("Engine stopped - cleanup complete")
         dd.update(status="stopped")
+
+        # Update MT5 status to disconnected
+        dd.update_mt5_status(
+            connected=False,
+            login=None,
+            server="",
+            account_info=None
+        )
+
         dd.add_log("Engine stopped")
         notify_web()
         try:
