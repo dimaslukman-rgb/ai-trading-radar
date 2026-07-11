@@ -14,6 +14,7 @@ tmp_pkg_license_info/
 tools/
 
 generated_serial_keys.txt
+nul
 config.json
 *.local.json
 
