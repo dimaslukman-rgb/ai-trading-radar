@@ -42,6 +42,8 @@ Safe config templates are included. Real broker credentials are intentionally ig
   exits, entry gates, higher-timeframe confirmation, sizing, and SL/TP prices.
 - TradingView chart dashboard helper.
 - Windows-friendly launcher scripts and executable build tooling.
+- Fake-broker service integration tests and live dashboard HTTP API tests.
+- GitHub Actions coverage on Windows and Linux with Python 3.10 and 3.14.
 
 ## Technical Stack
 
@@ -64,13 +66,20 @@ Minimum:
 - MetaTrader 5 terminal, required only for MT5 live execution
 - A broker account configured inside MT5, required only for live execution
 
-Install Python dependencies:
+Install the dependency-free core package for paper trading and backtests:
 
 ```powershell
-pip install -r requirements.txt
+pip install -e .
 ```
 
-Core CLI/backtest functionality can run with the Python standard library. MT5, GUI, Telegram, and exchange connectors require the optional packages listed in `requirements.txt`.
+Install only the optional capabilities you use, for example:
+
+```powershell
+pip install -e ".[mt5,desktop,telegram]"
+```
+
+`requirements.txt` pins every direct dependency for the complete Windows
+application. Core CLI/backtest functionality uses the Python standard library.
 
 ## Quick Start
 
@@ -86,6 +95,9 @@ Run the test suite:
 ```powershell
 python -m unittest discover -s tests -v
 ```
+
+The CI workflow also compiles the package and smoke-tests momentum and scalping
+backtests on every push and pull request.
 
 Run a sample backtest:
 

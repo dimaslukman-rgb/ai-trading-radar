@@ -18,6 +18,7 @@ import os
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
+from urllib.parse import urlsplit
 
 from . import dashboard_data as dd
 
@@ -81,27 +82,29 @@ class DashboardHandler(BaseHTTPRequestHandler):
     # ── Routes ────────────────────────────────────────────────────────
 
     def do_GET(self) -> None:
-        if self.path == "/" or self.path == "/index.html":
+        path = urlsplit(self.path).path
+        if path == "/" or path == "/index.html":
             self._serve_html()
-        elif self.path == "/api/status":
+        elif path == "/api/status":
             self._serve_status()
-        elif self.path == "/api/events":
+        elif path == "/api/events":
             self._serve_sse()
-        elif self.path == "/api/logs":
+        elif path == "/api/logs":
             self._serve_logs()
-        elif self.path == "/api/mt5/status":
+        elif path == "/api/mt5/status":
             self._serve_mt5_status()
-        elif self.path.startswith("/api/"):
+        elif path.startswith("/api/"):
             self._json_response(404, {"error": "not found"})
         else:
             self._json_response(404, {"error": "not found"})
 
     def do_POST(self) -> None:
-        if self.path == "/api/mt5/login":
+        path = urlsplit(self.path).path
+        if path == "/api/mt5/login":
             self._handle_mt5_login()
-        elif self.path == "/api/mt5/logout":
+        elif path == "/api/mt5/logout":
             self._handle_mt5_logout()
-        elif self.path == "/api/mt5/forgot_password":
+        elif path == "/api/mt5/forgot_password":
             self._handle_mt5_forgot_password()
         else:
             self._json_response(404, {"error": "not found"})
@@ -182,7 +185,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.send_header("Cache-Control", "no-cache")
             self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
-            self.wfile.write(body)
+            self._safe_write(body)
         except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError, OSError):
             pass
 
@@ -344,8 +347,9 @@ def start_web_dashboard(host: str = "127.0.0.1", port: int = 8080) -> ThreadingH
     server = ThreadingHTTPServer((host, port), DashboardHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
-    log.info(f"Web dashboard started: http://{host}:{port}")
-    print(f"[WEB] Dashboard: http://{host}:{port}")
+    bound_port = server.server_address[1]
+    log.info(f"Web dashboard started: http://{host}:{bound_port}")
+    print(f"[WEB] Dashboard: http://{host}:{bound_port}")
     return server
 
 

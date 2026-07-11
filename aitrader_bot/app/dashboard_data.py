@@ -163,14 +163,10 @@ def update_mt5_status(connected: bool, login: int | None = None, server: str = "
     """Update MT5 connection status and account information."""
     with _lock:
         _dashboard_data["mt5_connected"] = connected
-        if login is not None:
-            _dashboard_data["mt5_login"] = login
-        if server:
-            _dashboard_data["mt5_server"] = server
-        if account_info is not None:
-            _dashboard_data["mt5_account_info"] = account_info
-        if last_error:
-            _dashboard_data["mt5_last_error"] = last_error
+        _dashboard_data["mt5_login"] = login
+        _dashboard_data["mt5_server"] = server
+        _dashboard_data["mt5_account_info"] = account_info
+        _dashboard_data["mt5_last_error"] = last_error
 
 
 def snapshot() -> dict[str, Any]:

@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: ${{ matrix.os }} / Python ${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.10", "3.14"]
+
+    env:
+      PYTHONUTF8: "1"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install project
+        run: python -m pip install --disable-pip-version-check --editable .
+
+      - name: Compile sources
+        run: python -m compileall -q aitrader_bot tests
+
+      - name: Run test suite
+        run: python -m unittest discover -s tests -v
+
+      - name: Smoke-test momentum backtest
+        run: >-
+          python -m aitrader_bot.cli backtest
+          --config config.example.json
+          --data data/sample_prices.csv
+          --mode momentum
+
+      - name: Smoke-test scalping backtest
+        run: >-
+          python -m aitrader_bot.cli backtest
+          --config config.example.json
+          --data data/sample_prices_5m.csv
+          --mode scalping

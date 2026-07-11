@@ -32,6 +32,7 @@ build/
 dist/
 installer_output/
 *.spec
+*.egg-info/
 
 # OS/editor
 .DS_Store
