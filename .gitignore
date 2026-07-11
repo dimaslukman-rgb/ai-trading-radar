@@ -10,6 +10,9 @@ installer_staging/
 tmp_pkg_license_info/
 .agents/
 
+# Proprietary tools — not for public repo
+tools/
+
 generated_serial_keys.txt
 config.json
 *.local.json
