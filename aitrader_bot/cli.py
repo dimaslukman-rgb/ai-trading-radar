@@ -21,10 +21,16 @@ from .backtest import run_backtest
 from .broker import ExchangeType, OrderSide, OrderStatus, create_broker
 from .config import load_config
 from .data import fetch_yahoo_chart, read_csv_prices
-from .decision import TradingDecisionService, higher_timeframe_confirmation
+from .decision import (
+    TradingDecisionService,
+    compute_protective_prices as _compute_sl_tp,
+    entry_safety_blocks as _entry_safety_blocks,
+    higher_timeframe_confirmation,
+)
 from .models import PriceBar
 from .position_state import PositionActionType, PositionPhase, PositionSide, PositionStateMachine
 from .scalping import ScalpingStrategy
+from .services.execution import order_result_detail as _order_result_detail
 from .strategy import AiMomentumStrategy
 
 
@@ -144,11 +150,6 @@ def _cmd_signal(args: argparse.Namespace) -> None:
 # ══════════════════════════════════════════════════════════════════════════
 
 def _cmd_scalp(args: argparse.Namespace) -> None:
-    from .app.engine import (
-        _compute_sl_tp,
-        _entry_safety_blocks,
-        _order_result_detail,
-    )
     from .app.news_filter import get_upcoming_event
 
     config = load_config(args.config)

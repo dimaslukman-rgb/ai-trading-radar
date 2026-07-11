@@ -170,6 +170,7 @@ aitrader_bot/
   backtest.py      Historical simulation engine
   decision.py      Shared live, CLI, and backtest trading decisions
   position_state.py Long/short and multi-ticket position state machine
+  services/        Market data, signal, risk, execution, and position services
   scalping.py      XAUUSD scalping strategy and risk manager
   strategy.py      Momentum signal model
   config.py        Typed config loader
@@ -177,6 +178,12 @@ data/              Sample and XAUUSD research datasets
 tests/             Unit tests
 run_scalping.py    Windows app/live engine launcher
 ```
+
+`TradingEngine` is a lifecycle orchestrator. Live-loop work is separated into
+five independently testable services: `MarketDataService` builds broker
+snapshots, `SignalService` evaluates strategy context, `RiskService` owns entry
+gates and shared decisions, `ExecutionService` reconciles orders, and
+`PositionStateService` keeps broker-authoritative ticket state.
 
 ## Configuration Profiles
 

@@ -13,33 +13,48 @@ Communicates with GUI/tray via a queue.Queue:
 
 from __future__ import annotations
 
-import math
 import time
 from datetime import datetime, timezone
 from queue import Queue
 from threading import Event, Thread
 
-from aitrader_bot.broker import OrderSide, OrderStatus, create_broker
+from aitrader_bot.broker import create_broker
 from aitrader_bot.config import BotConfig, load_config
 from aitrader_bot.decision import (
     WIB,
-    TradingDecisionService,
-    as_wib as _as_wib,
     compute_protective_prices as _compute_sl_tp,
     entry_safety_blocks as _entry_safety_blocks,
-    higher_timeframe_confirmation,
     is_entry_session_open as _is_entry_session_open,
-    minutes_in_window as _minutes_in_window,
 )
-from aitrader_bot.indicators import ema, macd, bollinger_bands, stochastic, rsi, volatility
-from aitrader_bot.models import PriceBar
-from aitrader_bot.position_state import (
-    PositionActionType,
-    PositionPhase,
-    PositionSide,
-    PositionStateMachine,
-)
+from aitrader_bot.position_state import PositionSide
 from aitrader_bot.scalping import ScalpingStrategy
+from aitrader_bot.services import (
+    ExecutionKind,
+    ExecutionService,
+    MarketDataService,
+    PositionStateService,
+    RiskService,
+    SignalService,
+)
+from aitrader_bot.services.execution import (
+    compute_dollar_pnl as _compute_dollar_pnl,
+    is_close_complete as _is_close_complete,
+    order_result_detail as _order_result_detail,
+)
+from aitrader_bot.services.position_state import (
+    dashboard_position_rows as _dashboard_position_rows,
+    position_entry_time as _position_entry_time,
+)
+from aitrader_bot.services.risk import (
+    current_session_label as _current_session_label,
+    detect_sessions as _detect_sessions,
+)
+from aitrader_bot.services.signal import (
+    compute_analysis as _compute_analysis,
+    compute_confidence as _compute_confidence,
+    compute_sentiment as _compute_sentiment,
+    compute_volatility as _compute_volatility,
+)
 
 from . import dashboard_data as dd
 from .logger import setup_logging
@@ -52,244 +67,8 @@ log = setup_logging(__name__)
 ACCOUNT_REFRESH_SECONDS = 10.0
 
 
-# ═══════════════════════════════════════════════════════════════════════
-#  Analysis helpers for AI Trading Radar dashboard
-# ═══════════════════════════════════════════════════════════════════════
-
-def _position_entry_time(position) -> datetime | None:
-    """Normalize broker position time to aware UTC for restart recovery."""
-    opened_at = getattr(position, "opened_at", None)
-    if opened_at is None:
-        return None
-    if opened_at.tzinfo is None:
-        return opened_at.replace(tzinfo=timezone.utc)
-    return opened_at.astimezone(timezone.utc)
-
-
-def _is_close_complete(result, expected_quantity: float) -> bool:
-    """Only a fully filled close may transition local state to closed."""
-    expected = abs(expected_quantity)
-    return (
-        result is not None
-        and result.status == OrderStatus.FILLED
-        and abs(result.filled_qty) + 1e-12 >= expected
-    )
-
-
-def _order_result_detail(result, expected_quantity: float) -> str:
-    expected = abs(expected_quantity)
-    if result is None:
-        return f"status=missing filled=0.0000/{expected:.4f} | broker returned no result"
-    return (
-        f"status={result.status.value} filled={abs(result.filled_qty):.4f}/"
-        f"{expected:.4f} | {result.message}"
-    )
-
-
-def _detect_sessions(now: datetime | None = None) -> dict[str, bool]:
-    """Detect active trading sessions (WIB / UTC+7)."""
-    local = _as_wib(now)
-    minute = local.hour * 60 + local.minute
-    return {
-        "sydney": _minutes_in_window(minute, 0, 9 * 60),
-        "tokyo": _minutes_in_window(minute, 7 * 60, 16 * 60),
-        "london": _minutes_in_window(minute, 13 * 60, 22 * 60),
-        "new_york": _minutes_in_window(minute, 19 * 60 + 30, 4 * 60 + 30),
-    }
-
-
-def _current_session_label(sessions: dict[str, bool]) -> str:
-    """Return the primary active session name."""
-    active = [k for k, v in sessions.items() if v]
-    if not active:
-        return "Off-Hours"
-    labels = {"sydney": "Sydney", "tokyo": "Tokyo", "london": "London", "new_york": "New York"}
-    return ", ".join(labels.get(s, s.title()) for s in active)
-
-
-def _compute_analysis(bars: list[PriceBar], config) -> dict[str, bool]:
-    """Compute multi-factor analysis for the dashboard radar."""
-    closes = [b.close for b in bars]
-    highs = [b.high for b in bars]
-    lows = [b.low for b in bars]
-    volumes = [b.volume for b in bars]
-    analysis = {
-        "trend": False,
-        "ema": False,
-        "bos": False,
-        "order_block": False,
-        "liquidity_sweep": False,
-        "volume": False,
-        "rsi": False,
-        "macd": False,
-        "fvg": False,
-        "news_clear": True,
-    }
-    if len(closes) < 25:
-        return analysis
-    # EMA trend
-    ema_f = ema(closes, config.ema_fast)
-    ema_s = ema(closes, config.ema_slow)
-    if ema_f is not None and ema_s is not None:
-        analysis["ema"] = True
-        analysis["trend"] = ema_f > ema_s
-    # MACD
-    _, _, hist = macd(closes, config.macd_fast, config.macd_slow, config.macd_signal)
-    if hist is not None:
-        analysis["macd"] = abs(hist) > 0.05
-    # RSI
-    r = rsi(closes, 14)
-    if r is not None:
-        analysis["rsi"] = 45 < r < 55  # neutral zone
-    # Volume spike
-    if len(volumes) >= 10:
-        avg_vol = sum(volumes[-10:-1]) / 9 if len(volumes) > 1 else volumes[-1]
-        if avg_vol > 0:
-            analysis["volume"] = volumes[-1] / avg_vol > 1.2
-    # BOS: new high/low in last 5 bars
-    if len(closes) >= 6:
-        analysis["bos"] = closes[-1] > max(closes[-6:-1]) or closes[-1] < min(closes[-6:-1])
-    # Order Block: sharp move then pullback
-    if len(closes) >= 5:
-        last_move = closes[-1] - closes[-3]
-        prev_move = closes[-3] - closes[-5]
-        analysis["order_block"] = (last_move * prev_move < 0) and abs(last_move) > abs(prev_move) * 0.5
-    # Liquidity sweep: wick beyond recent range
-    if len(highs) >= 6 and len(lows) >= 6:
-        recent_high = max(highs[-6:-1])
-        recent_low = min(lows[-6:-1])
-        analysis["liquidity_sweep"] = highs[-1] > recent_high or lows[-1] < recent_low
-    # FVG: gap between bars
-    if len(closes) >= 3 and len(highs) >= 3 and len(lows) >= 3:
-        gap_up = lows[-1] > highs[-3]
-        gap_down = highs[-1] < lows[-3]
-        analysis["fvg"] = gap_up or gap_down
-    return analysis
-
-
-def _compute_confidence(analysis: dict[str, bool]) -> tuple[int, str]:
-    """Compute confidence percentage and category from analysis factors."""
-    factor_weights = {
-        "trend": 10, "ema": 10, "bos": 10, "order_block": 10,
-        "liquidity_sweep": 10, "volume": 10, "rsi": 5,
-        "macd": 5, "fvg": 10, "news_clear": 10,
-    }
-    total = 0
-    for key, weight in factor_weights.items():
-        if analysis.get(key, False):
-            total += weight
-    if total >= 95:
-        cat = "STRONG CONFIRMED"
-    elif total >= 85:
-        cat = "HIGH PROBABILITY"
-    elif total >= 70:
-        cat = "GOOD SETUP"
-    elif total >= 50:
-        cat = "WATCHLIST"
-    else:
-        cat = "NO TRADE"
-    return total, cat
-
-
-def _compute_volatility(closes: list[float]) -> str:
-    """Classify volatility level from recent price movement."""
-    if len(closes) < 20:
-        return "NORMAL"
-    vol = volatility(closes, 20)
-    if vol is None:
-        return "NORMAL"
-    if vol < 0.002:
-        return "LOW"
-    elif vol < 0.005:
-        return "NORMAL"
-    elif vol < 0.01:
-        return "HIGH"
-    else:
-        return "EXTREME"
-
-
-def _compute_sentiment(closes: list[float], highs: list[float], lows: list[float]) -> dict[str, int]:
-    """Compute market sentiment from recent price action."""
-    if len(closes) < 10:
-        return {"bullish": 0, "bearish": 0, "neutral": 100}
-    bullish = 0
-    bearish = 0
-    for i in range(-10, 0):
-        if closes[i] > closes[i - 1]:
-            bullish += 1
-        elif closes[i] < closes[i - 1]:
-            bearish += 1
-    total = bullish + bearish
-    neutral = 10 - total
-    return {
-        "bullish": round(bullish / 10 * 100),
-        "bearish": round(bearish / 10 * 100),
-        "neutral": round(max(0, neutral) / 10 * 100),
-    }
-
-
-def _contract_size(symbol: str) -> int:
-    """Get contract size multiplier for dollar P&L calculation.
-
-    P&L = price_diff * quantity * contract_size
-
-    - XAUUSD: 1 lot = 100 oz, contract_size = 100
-    - XAGUSD: 1 lot = 5000 oz, contract_size = 5000
-    - Forex: 1 lot = 100,000 units, contract_size = 100000
-    - JPY pairs: 1 lot = 100,000 units, but quoted in JPY
-    """
-    sym = symbol.upper()
-    if "XAU" in sym or "GOLD" in sym:
-        return 100      # 100 troy ounces per lot
-    elif "XAG" in sym or "SILVER" in sym:
-        return 5000     # 5000 troy ounces per lot
-    elif "JPY" in sym:
-        return 1000     # Reduced contract for JPY (simplified)
-    elif "BTC" in sym or "ETH" in sym or "XRP" in sym:
-        return 1        # Crypto: 1 coin per unit
-    else:
-        return 100000   # Standard forex: 100k units
-
-
-def _compute_dollar_pnl(
-    symbol: str,
-    entry_price: float,
-    exit_price: float,
-    quantity: float,
-    side: str = "buy",
-) -> float:
-    """Compute actual dollar P&L: price_diff * quantity * contract_size."""
-    price_diff = exit_price - entry_price
-    if side.lower() in {"sell", "short"}:
-        price_diff *= -1
-    return price_diff * quantity * _contract_size(symbol)
-
-
-def _dashboard_position_rows(positions, point_size: float | None) -> list[dict]:
-    pip_value = point_size * 10 if point_size else 0.1
-    rows: list[dict] = []
-    for position in positions:
-        price_diff = position.current_price - position.avg_price
-        if position.side == PositionSide.SHORT:
-            price_diff *= -1
-        pnl_pips = price_diff / pip_value if pip_value > 0 else 0.0
-        rows.append({
-            "ticket": position.ticket,
-            "symbol": position.symbol,
-            "side": position.side.name,
-            "qty": round(position.quantity, 4),
-            "entry": round(position.avg_price, 5),
-            "current": round(position.current_price, 5),
-            "pnl": round(position.unrealized_pnl, 2),
-            "pnl_pips": round(pnl_pips, 1),
-            "opened_at": position.opened_at.isoformat() if position.opened_at else None,
-            "sl": position.stop_loss,
-            "tp": position.take_profit,
-            "phase": position.phase.value,
-            "last_error": position.last_error,
-        })
-    return rows
-
+# Private helper aliases above preserve compatibility for CLI callers and
+# existing integrations while their implementations live in focused services.
 
 class TradingEngine:
     """Background thread running the scalping loop."""
@@ -413,12 +192,28 @@ class TradingEngine:
         try:
             self.broker.connect()
             acct = self.broker.get_account()
-            position_machine = PositionStateMachine.from_config(
+            position_state_service = PositionStateService.from_config(
+                self.broker,
+                mapped_symbol,
                 strategy.config,
-                broker_supports_short=self.broker.supports_short_positions,
-                broker_supports_multiple=self.broker.supports_multiple_positions,
             )
-            decision_service = TradingDecisionService(strategy.config, position_machine)
+            risk_service = RiskService(
+                strategy.config,
+                position_state_service.machine,
+            )
+            market_data_service = MarketDataService(
+                self.broker,
+                mapped_symbol,
+                strategy.config.candle_timeframe,
+            )
+            signal_service = SignalService(strategy, market_data_service)
+            execution_service = ExecutionService(
+                self.broker,
+                mapped_symbol,
+                symbol,
+                position_state_service,
+                risk_service,
+            )
 
             # Update MT5 account information for dashboard
             mt5_login = None
@@ -492,9 +287,6 @@ class TradingEngine:
 
         iteration = 0
         last_error_iter = -10  # for error notification cooldown
-        bars: list[PriceBar] = []
-        candle_history: list = []
-        protection_repair_failures: set[str] = set()
         last_account_refresh = time.monotonic()
 
         def refresh_account(force: bool = False) -> None:
@@ -516,10 +308,9 @@ class TradingEngine:
             iteration += 1
 
             try:
-                # 1. Fetch quote
-                quote = self.broker.get_quote(mapped_symbol)
-
-                if quote is None:
+                # 1. Acquire one consistent quote/candle/bar snapshot.
+                market_snapshot = market_data_service.snapshot()
+                if market_snapshot is None:
                     self._put("signal:waiting - no quote, retry in 10s")
                     for _ in range(2):
                         if self._stop.is_set():
@@ -527,14 +318,13 @@ class TradingEngine:
                         time.sleep(5)
                         refresh_account()
                     continue
+                quote = market_snapshot.quote
 
-                # 1b. Compute fail-closed entry gates. Existing positions still
-                # pass through the loop so exits are always managed.
+                # 2. Risk gates apply only to entries; position exits remain live.
                 news_event = None
                 if strategy.config.news_filter_enabled:
                     news_event = get_upcoming_event(buffer_minutes=strategy.config.news_filter_minutes)
-                entry_blocks = _entry_safety_blocks(
-                    strategy.config,
+                entry_blocks = risk_service.entry_blocks(
                     quote,
                     supports_attached_protection=self.broker.supports_attached_protection,
                     news_event=news_event,
@@ -544,111 +334,51 @@ class TradingEngine:
                     log.info(f"New entries blocked: {block_summary}")
                     self._put(f"signal:entry blocked — {block_summary}")
 
-                # 2. Fetch candles from broker (configurable timeframe)
-                try:
-                    candle_timeframe = strategy.config.candle_timeframe
-                    candle_history = self.broker.fetch_candles(mapped_symbol, candle_timeframe, 50)
-                except Exception:
-                    pass
-
-                # 3. Build bar list
-                if candle_history:
-                    bars = [
-                        PriceBar(
-                            date=c.timestamp, open=c.open, high=c.high,
-                            low=c.low, close=c.close, volume=c.volume,
-                        )
-                        for c in candle_history
-                    ]
-                else:
-                    now = datetime.now()
-                    bars.append(PriceBar(
-                        date=now, open=quote.last, high=quote.last,
-                        low=quote.last, close=quote.last, volume=quote.volume,
-                    ))
-                    if len(bars) > 50:
-                        bars = bars[-50:]
-
-                # 4. Generate signal
-                signal = strategy.generate(symbol, bars, quote)
-                positions = self.broker.get_positions(mapped_symbol)
-                sync_result = position_machine.sync(positions)
-                managed_positions = position_machine.active_positions(mapped_symbol)
-                for ticket in sync_result.opened:
-                    recovered = position_machine.get(ticket)
+                # 3. Generate signal context and synchronize broker positions.
+                signal_evaluation = signal_service.evaluate(
+                    symbol,
+                    market_snapshot,
+                    entry_blocked=bool(entry_blocks),
+                )
+                signal = signal_evaluation.signal
+                position_snapshot = position_state_service.sync()
+                managed_positions = position_snapshot.managed_positions
+                for ticket in position_snapshot.sync_result.opened:
+                    recovered = position_state_service.machine.get(ticket)
                     log.info(
                         f"Discovered broker position {ticket}: "
                         f"{recovered.side.value} {recovered.quantity:.4f} {recovered.symbol}"
                     )
 
-                opened_times = [p.opened_at for p in managed_positions if p.opened_at is not None]
-                dd.update(entry_time=min(opened_times).isoformat() if opened_times else None)
+                dd.update(entry_time=(
+                    position_snapshot.earliest_entry_time.isoformat()
+                    if position_snapshot.earliest_entry_time else None
+                ))
 
-                if managed_positions and self.broker.supports_attached_protection:
-                    for pos in positions:
-                        side = (getattr(pos, "side", "") or "buy").lower()
-                        side = "sell" if side in {"sell", "short"} else "buy"
-                        needs_sl = strategy.config.stop_loss_pips > 0 and pos.stop_loss is None
-                        needs_tp = strategy.config.take_profit_pips > 0 and pos.take_profit is None
-                        if not (needs_sl or needs_tp):
-                            continue
-                        desired = _compute_sl_tp(
-                            pos.avg_price,
-                            side,
-                            strategy.config,
-                            symbol=symbol,
-                            point_size=quote.point_size,
-                        )
-                        protection_result = self.broker.set_position_protection(
-                            pos.ticket,
-                            desired["sl"] if needs_sl else pos.stop_loss,
-                            desired["tp"] if needs_tp else pos.take_profit,
-                        )
-                        if (
-                            protection_result is not None
-                            and protection_result.status == OrderStatus.FILLED
-                        ):
-                            protection_repair_failures.discard(pos.ticket)
-                            log.info(f"Recovered broker-side SL/TP for position {pos.ticket}")
-                            dd.add_log(f"PROTECTION RESTORED: position {pos.ticket}")
-                        elif pos.ticket not in protection_repair_failures:
-                            detail = _order_result_detail(protection_result, pos.quantity)
-                            message = f"Failed to restore SL/TP for position {pos.ticket}: {detail}"
-                            protection_repair_failures.add(pos.ticket)
-                            self._put(f"error:{message}")
-                            log.error(message)
-                            dd.add_log(f"ERROR: {message}")
-                            tg.send_error(message)
+                # 4. Re-establish missing broker-side protection after recovery.
+                for repair in execution_service.repair_missing_protection(
+                    position_snapshot.broker_positions,
+                    quote.point_size,
+                ):
+                    if repair.success:
+                        log.info(repair.message)
+                        dd.add_log(f"PROTECTION RESTORED: position {repair.ticket}")
+                    else:
+                        self._put(f"error:{repair.message}")
+                        log.error(repair.message)
+                        dd.add_log(f"ERROR: {repair.message}")
+                        tg.send_error(repair.message)
 
-                dashboard_positions = _dashboard_position_rows(
-                    managed_positions, quote.point_size,
-                )
-                dd.update(open_positions=dashboard_positions)
+                dd.update(open_positions=position_state_service.dashboard_rows(
+                    quote.point_size,
+                ))
 
-                # 4a. Higher Timeframe Confirmation (M5 → M1)
-                # Cek M5 EMA 9/21 — reject only if EMAs are >1% divergent
-                tf_confirmed = True
-                tf_reason = ""
-                if not entry_blocks and signal.action in ("buy", "sell"):
-                    try:
-                        tf_candles = self.broker.fetch_candles(mapped_symbol, "5m", 25)
-                        tf_confirmed, tf_reason = higher_timeframe_confirmation(
-                            [c.close for c in tf_candles], signal.action,
-                        )
-                    except Exception:
-                        pass  # If can't fetch M5, just proceed with M1 signal
-
-                # 4b. Compute AI Radar analysis data
-                analysis = _compute_analysis(bars, strategy.config)
-                conf_pct, conf_cat = _compute_confidence(analysis)
+                # 5. Publish the signal service's read-only radar analysis.
                 sessions = _detect_sessions()
                 session_label = _current_session_label(sessions)
-                senti = _compute_sentiment(closes=[b.close for b in bars], highs=[b.high for b in bars], lows=[b.low for b in bars])
-                vol = _compute_volatility([b.close for b in bars])
-                sltp = _compute_sl_tp(
+                sltp = risk_service.protective_prices(
                     quote.last,
                     signal.action,
-                    strategy.config,
                     symbol=symbol,
                     point_size=quote.point_size,
                 )
@@ -656,150 +386,84 @@ class TradingEngine:
 
                 # Update dashboard radar data
                 dd.update(
-                    confidence_pct=conf_pct,
-                    confidence_category=conf_cat,
+                    confidence_pct=signal_evaluation.confidence_pct,
+                    confidence_category=signal_evaluation.confidence_category,
                     signal_action=signal.action.upper() if signal.action else "HOLD",
                     entry=sltp["entry"],
                     sl=sltp["sl"],
                     tp=sltp["tp"],
                     rr=sltp["rr"],
-                    signal_status=conf_cat,
+                    signal_status=signal_evaluation.confidence_category,
                     current_session=session_label,
                     sessions=sessions,
-                    sentiment=senti,
-                    volatility=vol,
+                    sentiment=signal_evaluation.sentiment,
+                    volatility=signal_evaluation.volatility,
                     news_events=macro["events"],
                     macro_sentiment=macro,
-                    analysis=analysis,
+                    analysis=signal_evaluation.analysis,
                 )
 
-                # 5. Execute the position state machine.
-                signal_messages: list[str] = []
-                broker_state_changed = False
-
-                def execute_close(pos, reason: str) -> None:
-                    nonlocal broker_state_changed
-                    broker_state_changed = True
-                    position_machine.mark_closing(pos.ticket)
-                    result = self.broker.close_position(pos.ticket)
-                    phase = position_machine.apply_close_result(pos.ticket, result)
-                    pnl_usd = _compute_dollar_pnl(
-                        symbol,
-                        pos.avg_price,
-                        pos.current_price,
-                        pos.quantity,
-                        pos.side.value,
-                    )
-                    if phase == PositionPhase.CLOSED:
-                        msg = (
-                            f"CLOSED {pos.side.name} {pos.ticket} {pos.quantity:.4f} "
-                            f"{mapped_symbol} @ {pos.current_price:.5f} P&L=${pnl_usd:+.2f} | {reason}"
-                        )
-                        signal_messages.append(msg)
-                        dd.add_trade(
-                            f"CLOSE {pos.side.name}", mapped_symbol, pos.current_price,
-                            pos.quantity, reason, pnl_usd,
-                        )
-                        dd.add_log(msg)
-                        close_action = "sell" if pos.side == PositionSide.LONG else "buy"
-                        tg.send_signal(close_action, mapped_symbol, pos.current_price, reason, pnl=pnl_usd)
-                    else:
-                        detail = _order_result_detail(result, pos.quantity)
-                        msg = f"CLOSE {phase.value.upper()} {pos.ticket} ({reason}) | {detail}"
-                        signal_messages.append(msg)
-                        self._put(f"error:{msg}")
-                        log.error(msg)
-                        dd.add_log(f"ERROR: {msg}")
-
-                decision_plan = decision_service.decide(
+                # 6. Plan risk/signal actions and execute them through one adapter.
+                decision_plan = risk_service.decide(
                     signal.action,
                     mapped_symbol,
                     point_size=quote.point_size,
                     now=datetime.now(timezone.utc),
                     entry_block_reasons=entry_blocks,
-                    higher_timeframe_confirmed=tf_confirmed,
-                    higher_timeframe_reason=tf_reason,
+                    higher_timeframe_confirmed=(
+                        signal_evaluation.higher_timeframe_confirmed
+                    ),
+                    higher_timeframe_reason=signal_evaluation.higher_timeframe_reason,
                 )
+                execution_batch = execution_service.execute(
+                    decision_plan.actions,
+                    quote,
+                    signal.reason,
+                )
+                signal_messages: list[str] = []
 
-                if decision_plan.actions:
-                    actions = decision_plan.actions
-
-                    for action in actions:
-                        if action.action == PositionActionType.HOLD:
-                            signal_messages.append(
-                                f"HOLD {mapped_symbol} @ {quote.last:.5f} | {action.reason}"
-                            )
-                            continue
-
-                        if action.action == PositionActionType.CLOSE:
-                            pos = position_machine.get(action.ticket)
-                            if pos is not None:
-                                execute_close(pos, action.reason)
-                            continue
-
-                        side = (
-                            PositionSide.LONG
-                            if action.action == PositionActionType.OPEN_LONG
-                            else PositionSide.SHORT
+                for outcome in execution_batch.outcomes:
+                    signal_messages.append(outcome.message)
+                    if outcome.kind == ExecutionKind.CLOSED:
+                        dd.add_trade(
+                            f"CLOSE {outcome.side.name}", mapped_symbol,
+                            outcome.price, outcome.quantity,
+                            outcome.action.reason, outcome.pnl,
                         )
-                        order_side = OrderSide.BUY if side == PositionSide.LONG else OrderSide.SELL
-                        entry_reference = quote.ask if side == PositionSide.LONG else quote.bid
-                        try:
-                            acct_data = self.broker.get_account()
-                            eq = acct_data.equity
-                            bal = acct_data.balance
-                        except Exception:
-                            eq = 10000.0
-                            bal = 10000.0
-                        qty = decision_service.entry_quantity(bal, eq, entry_reference)
-
-                        protection = _compute_sl_tp(
-                            entry_reference,
-                            side.value,
-                            strategy.config,
-                            symbol=symbol,
-                            point_size=quote.point_size,
+                        dd.add_log(outcome.message)
+                        close_action = (
+                            "sell" if outcome.side == PositionSide.LONG else "buy"
                         )
-                        result = self.broker.place_order(
+                        tg.send_signal(
+                            close_action,
                             mapped_symbol,
-                            order_side,
-                            qty,
-                            stop_loss=protection["sl"] if strategy.config.stop_loss_pips > 0 else None,
-                            take_profit=protection["tp"] if strategy.config.take_profit_pips > 0 else None,
+                            outcome.price,
+                            outcome.action.reason,
+                            pnl=outcome.pnl,
                         )
-                        position_machine.record_entry_result(mapped_symbol, side, result)
-                        if (
-                            result is not None
-                            and result.status in {OrderStatus.FILLED, OrderStatus.PARTIAL}
-                            and result.filled_qty > 0
-                        ):
-                            broker_state_changed = True
-                            msg = (
-                                f"OPENED {side.name} {result.filled_qty:.4f} {mapped_symbol} "
-                                f"@ {result.avg_fill_price or entry_reference:.5f} | {signal.reason}"
-                            )
-                            signal_messages.append(msg)
-                            dd.add_trade(
-                                f"OPEN {side.name}", mapped_symbol,
-                                result.avg_fill_price or entry_reference,
-                                result.filled_qty, signal.reason,
-                            )
-                            dd.add_log(msg)
-                            tg.send_signal(side.value, mapped_symbol, entry_reference, signal.reason)
-                            dd.update(
-                                entry_time=result.timestamp.isoformat(),
-                                timeout_minutes=strategy.config.timeout_exit_minutes,
-                            )
-                        elif result is not None and result.status == OrderStatus.PENDING:
-                            signal_messages.append(
-                                f"ENTRY PENDING {side.name} {mapped_symbol} | {result.message}"
-                            )
-                        else:
-                            detail = _order_result_detail(result, qty)
-                            msg = f"ENTRY REJECTED {side.name} {mapped_symbol} | {detail}"
-                            signal_messages.append(msg)
-                            log.warning(msg)
-                            dd.add_log(f"REJECTED: {msg}")
+                    elif outcome.kind == ExecutionKind.CLOSE_UNCONFIRMED:
+                        self._put(f"error:{outcome.message}")
+                        log.error(outcome.message)
+                        dd.add_log(f"ERROR: {outcome.message}")
+                    elif outcome.kind == ExecutionKind.OPENED:
+                        dd.add_trade(
+                            f"OPEN {outcome.side.name}", mapped_symbol,
+                            outcome.price, outcome.quantity, signal.reason,
+                        )
+                        dd.add_log(outcome.message)
+                        tg.send_signal(
+                            outcome.side.value,
+                            mapped_symbol,
+                            outcome.price,
+                            signal.reason,
+                        )
+                        dd.update(
+                            entry_time=outcome.result.timestamp.isoformat(),
+                            timeout_minutes=strategy.config.timeout_exit_minutes,
+                        )
+                    elif outcome.kind == ExecutionKind.ENTRY_REJECTED:
+                        log.warning(outcome.message)
+                        dd.add_log(f"REJECTED: {outcome.message}")
 
                 signal_msg = " || ".join(signal_messages) or (
                     f"HOLD {mapped_symbol} @ {quote.last:.5f} sc={signal.confidence:.3f}"
@@ -807,14 +471,12 @@ class TradingEngine:
                 self._put(f"signal:{signal_msg}")
                 log.info(f"signal:{signal_msg}")
 
-                if broker_state_changed:
-                    try:
-                        refreshed_positions = self.broker.get_positions(mapped_symbol)
-                        position_machine.sync(refreshed_positions)
-                    except Exception as e:
-                        log.warning(f"Position refresh after execution failed: {e}")
-                dd.update(open_positions=_dashboard_position_rows(
-                    position_machine.active_positions(mapped_symbol),
+                if execution_batch.refresh_error:
+                    log.warning(
+                        "Position refresh after execution failed: "
+                        f"{execution_batch.refresh_error}"
+                    )
+                dd.update(open_positions=position_state_service.dashboard_rows(
                     quote.point_size,
                 ))
 
