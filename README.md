@@ -247,16 +247,6 @@ pyinstaller --onefile --name "AITradingRadar" --icon "icon.ico" ^
 
 > The installer supports **auto-upgrade** — it detects existing installations and preserves user config.
 
-### Automated Release
-
-```powershell
-# Preview release steps
-python tools\release.py --dry-run
-
-# Full release (build + upload to GitHub)
-python tools\release.py --publish --token ghp_xxxx
-```
-
 ---
 
 ## Project Structure
@@ -327,9 +317,6 @@ ai-trading-radar/
       logger.py              Logging system
       news_filter.py         News impact filter
       notifier.py            Telegram notification
-  tools/                     Development tools
-    release.py               Release automation
-    make_serial.py           License key generator
   data/                      Sample market data (CSV)
   tests/                     Test suite
   run_scalping.py            Entry point with login dialog
