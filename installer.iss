@@ -10,9 +10,9 @@
 ;   - UsePreviousAppDir=yes → remembers install location
 
 #define MyAppName "AI Trading Radar"
-#define MyAppVersion "1.2.0"
+#define MyAppVersion "2.0.0"
 #define MyAppPublisher "AI Trading Radar"
-#define MyAppURL "https://github.com/ai-trading-bot/ai-trading-radar"
+#define MyAppURL "https://github.com/dimaslukman-rgb/ai-trading-radar"
 #define MyAppExeName "AITradingRadar.exe"
 #define MyAppUpdateURL "https://github.com/ai-trading-bot/ai-trading-radar/releases"
 
