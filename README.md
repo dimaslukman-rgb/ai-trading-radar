@@ -1,326 +1,372 @@
+<div align="center">
+
 # AI Trading Radar
 
-[![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
-[![MetaTrader 5](https://img.shields.io/badge/MetaTrader%205-Execution-0052CC?style=for-the-badge)](https://www.metatrader5.com/)
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg?style=for-the-badge)](LICENSE)
-[![Status](https://img.shields.io/badge/Status-Research%20%2B%20Live%20Execution-orange?style=for-the-badge)](#disclaimer)
+**Professional Multi-Factor Analysis Engine — XAUUSD Scalping for MT5/Finex**
 
-**AI Trading Radar** is a Python-based algorithmic trading system for XAUUSD scalping research, signal generation, broker execution, and real-time browser monitoring.
+[![Version](https://img.shields.io/badge/version-2.0.0-00ff88?style=for-the-badge&labelColor=0a0e17)](https://github.com/dimaslukman-rgb/ai-trading-radar/releases/tag/v2.0.0)
+[![Python](https://img.shields.io/badge/Python-3.10+-00d4ff?style=for-the-badge&labelColor=0a0e17&logo=python&logoColor=00d4ff)](https://python.org)
+[![License](https://img.shields.io/badge/License-Proprietary-a855f7?style=for-the-badge&labelColor=0a0e17)]()
+[![Platform](https://img.shields.io/badge/Platform-Windows-ffaa00?style=for-the-badge&labelColor=0a0e17&logo=windows&logoColor=ffaa00)]()
 
-Built for operators who need a compact trading stack: strategy logic, risk controls, MT5 execution, Telegram alerts, historical backtests, and a live dashboard in one repository.
+Live AI-powered scalping signals, real-time dashboard, and automated MT5 execution — all in one Windows desktop application.
 
-> Quantitative Researcher | Algorithmic Trader | Trading Systems Architect
+[Download v2.0.0 Installer](https://github.com/dimaslukman-rgb/ai-trading-radar/releases/tag/v2.0.0)  |  [Report Bug](https://github.com/dimaslukman-rgb/ai-trading-radar/issues)  |  [View Dashboard Demo](https://github.com/dimaslukman-rgb/ai-trading-radar)
 
-## About
+</div>
 
-This project focuses on short-horizon XAUUSD trading workflows:
+---
 
-- Research strategy behavior on historical OHLCV data.
-- Generate structured `BUY`, `SELL`, and `HOLD` signals.
-- Execute through MetaTrader 5 when a live broker profile is configured.
-- Track account equity, open positions, entries, current price, floating P&L, and radar confidence through a local web dashboard.
-- Keep sensitive broker credentials out of Git by using local-only config files.
+## What's New in v2.0.0
 
-The bot includes two primary execution styles:
+### 🔐 MT5 Login Dialog (New!)
+Every time the bot runs, a **popup login dialog** (PyQt6) appears asking for MT5 credentials:
+- **Server** — e.g. `FinexBisnisSolusi-Demo`
+- **Login** — MT5 account number
+- **Password** — MT5 account password
 
-- **Normal Finex profile**: slower 5-minute scalping settings with session and news filters.
-- **Ultra M1 profile**: aggressive 1-minute scalping settings for faster signal rotation and tighter TP/SL logic.
+After successful login, the bot **auto-starts** and runs in the **Windows system tray**.
 
-Safe config templates are included. Real broker credentials are intentionally ignored by Git.
+> **Why?** So you never have to store real credentials in config files. Login securely every session.
+
+### 🤖 Multi-Agent AI System (New!)
+A team of **20+ specialized AI agents** analyze the market before every trade:
+- **Chief Trader** — Final decision maker, aggregates all agent reports
+- **Trend Analyst** — Identifies trend direction and strength
+- **Price Action** — Candlestick patterns and market structure
+- **Market Structure** — BOS, CHOCH, order blocks
+- **Liquidity** — Liquidity sweeps and stop hunts
+- **Volatility** — ATR, Bollinger Band width, volatility regime
+- **Volume Profile** — High volume nodes, value area
+- **Smart Money** — Institutional order flow concepts
+- **Session Analyst** — London/NY/Tokyo/Sydney session influence
+- **Correlation** — XAUUSD correlations with DXY, yields
+- **Risk Manager** — Position sizing based on account risk
+- **Exit Strategy** — Optimal take-profit and stop-loss placement
+- **Journal** — Trade journal and performance tracking
+- And more...
+
+Each agent votes with a confidence score. The **Chief Trader** compiles the analysis and either confirms or rejects signals.
+
+### 📊 MT5 Account Management (New!)
+- View **balance, equity, margin, free margin, leverage** in real-time
+- Account info displayed in both GUI dashboard and web dashboard
+- Connection status indicator (CONNECTED / DISCONNECTED)
+- Server and UserLogin information visible at all times
+
+### 🌐 Enhanced Web Dashboard
+- MT5 account info (login number & server) in the header
+- Real-time account balance & equity display
+- Agent analysis summary with confidence scores
+- Improved signal breakdown with factor indicators
+- Better news catalyst integration
+
+### 🔧 Other Improvements
+- Refactored engine into dedicated services (`services/` folder)
+- New `position_state.py` for robust position management
+- New `decision.py` for unified trading decisions
+- New `research.py` and `walk_forward.py` for advanced backtesting
+- Cost-aware walk-forward optimization research
+- Integration tests and CI pipeline
+
+---
+
+## Auto-Update System
+
+The app automatically checks for new versions via GitHub Releases!
+
+- **Background check** — Checks every 24 hours automatically
+- **One-click update** — Download & install directly from the web dashboard
+- **Progress bar** — See download progress in real-time
+- **Smart installer** — Inno Setup detects existing install and upgrades seamlessly
+- **CLI support** — `--check-update` and `--version` flags
+
+> **How it works:** The app checks GitHub Releases in the background. When a new version is found, a banner appears in the dashboard — just click **Download** then **Install**.
+
+---
 
 ## Features
 
-- Multi-broker abstraction with Paper, MT5, CCXT/Binance, and Alpaca adapters.
-- XAUUSD scalping strategy with EMA, MACD, Bollinger Bands, Stochastic, RSI, and momentum velocity.
-- Broker-authoritative long/short position state with independent multi-ticket tracking, pending/partial close states, and configurable scale-in or hedging policy.
-- Risk manager for dynamic position sizing, stop loss, take profit, lock profit, and timeout exits.
-- Real-time browser dashboard at `http://127.0.0.1:9190`.
-- Open position table with ticket, side, entry, current price, pips, and P&L.
-- Telegram notification support for signals, lifecycle events, and errors.
-- CSV backtesting and signal generation CLI. Scalping simulations reuse the
-  live decision service and position state machine, including long/short risk
-  exits, entry gates, higher-timeframe confirmation, sizing, and SL/TP prices.
-- TradingView chart dashboard helper.
-- Windows-friendly launcher scripts and executable build tooling.
-- Fake-broker service integration tests and live dashboard HTTP API tests.
-- GitHub Actions coverage on Windows and Linux with Python 3.10 and 3.14.
+| Real-Time Analysis | Live Dashboard | Smart Execution |
+|:---|:---|:---|
+| Trend, EMA, BOS, Order Block | TradingView XAUUSD M1 chart | MT5/Finex auto-trading |
+| Liquidity Sweep, Volume, RSI, MACD, FVG | Confidence score breakdown | Entry / SL / TP management |
+| Session detection (Sydney/Tokyo/London/NY) | Sentiment & volatility index | Risk:Reward optimization |
+| High-impact news filter | Signal history & live log | Aggressive mode for M1 scalping |
+| **20+ AI Agents** (NEW in v2.0.0) | **MT5 Account Info** (NEW) | **Login Dialog** (NEW) |
 
-## Technical Stack
-
-- **Language**: Python
-- **Execution**: MetaTrader 5 Python API, paper broker simulation
-- **Market Connectors**: MT5, CCXT, Alpaca
-- **Strategy Layer**: EMA, MACD, RSI, Bollinger Bands, Stochastic, volatility and momentum scoring
-- **Dashboard**: Python `http.server`, Server-Sent Events, HTML/CSS/JavaScript, TradingView widget
-- **Notifications**: Telegram Bot API
-- **Packaging**: PyInstaller, Inno Setup
-- **Testing**: Python `unittest`
-- **Operating Target**: Windows desktop/VPS with MetaTrader 5 installed
-
-## Requirements
-
-Minimum:
-
-- Python 3.10 or newer
-- Git
-- MetaTrader 5 terminal, required only for MT5 live execution
-- A broker account configured inside MT5, required only for live execution
-
-Install the dependency-free core package for paper trading and backtests:
-
-```powershell
-pip install -e .
-```
-
-Install only the optional capabilities you use, for example:
-
-```powershell
-pip install -e ".[mt5,desktop,telegram]"
-```
-
-`requirements.txt` pins every direct dependency for the complete Windows
-application. Core CLI/backtest functionality uses the Python standard library.
+---
 
 ## Quick Start
 
-Clone the repository:
+### Prerequisites
+
+- **Windows 10/11**
+- **Python 3.10+** (for source installation)
+- **MetaTrader 5** (for live trading with Finex/MT5)
+- **PyQt6** (for login dialog and GUI dashboard)
+
+### Installation
 
 ```powershell
+# 1. Clone the repository
 git clone https://github.com/dimaslukman-rgb/ai-trading-radar.git
 cd ai-trading-radar
+
+# 2. Install all dependencies
+python -m pip install -r requirements.txt
+
+# 3. Install optional desktop dependencies
+python -m pip install PyQt6 pystray Pillow win10toast
+
+# 4. Copy config
+copy config.example.json config.json
+
+# 5. Run the bot (login dialog will appear)
+python run_scalping.py --config config.json --broker mt5
 ```
 
-Run the test suite:
+> **Note:** In v2.0.0, you no longer need to edit `config.json` with MT5 credentials. The **login dialog** will prompt you for server, login, and password every time you run the bot.
+
+### Login Flow
+
+1. Run `python run_scalping.py`
+2. A **PyQt6 popup dialog** appears asking for:
+   - **Server** — e.g. `FinexBisnisSolusi-Demo`
+   - **Login** — e.g. `60779778`
+   - **Password** — your MT5 password
+3. Click **Connect**
+4. Bot auto-starts and connects to MT5
+5. Dashboard opens at `http://127.0.0.1:9190/`
+6. System tray icon appears for stop/start controls
+
+> **Skip login** for development: `python run_scalping.py --skip-login` (uses credentials from config file)
+
+### Check Version & Updates
 
 ```powershell
-python -m unittest discover -s tests -v
+# Show version info
+python run_scalping.py --version
+
+# Check for updates
+python run_scalping.py --check-update
 ```
 
-The CI workflow also compiles the package and smoke-tests momentum and scalping
-backtests on every push and pull request.
+---
 
-Run a sample backtest:
+## Usage Modes
+
+| Command | Description |
+|:--------|:------------|
+| `python run_scalping.py` | Full mode: Login Dialog → Tray + Web Dashboard |
+| `python run_scalping.py --no-gui` | Background mode: Tray only (recommended) |
+| `python run_scalping.py --no-tray` | Web Dashboard only, no tray |
+| `python run_scalping.py --no-gui --no-tray` | Pure CLI mode (console login fallback) |
+| `python run_scalping.py --skip-login` | Skip login popup, use config file credentials |
+| `python run_scalping.py --auto-start` | Auto-start the trading engine on launch |
+| `python run_scalping.py --version` | Show current version |
+| `python run_scalping.py --check-update` | Check for newer version on GitHub |
+| `python run_scalping.py --reset-license` | Reset stored license key |
+
+### Run as Windows Executable
 
 ```powershell
-python -m aitrader_bot.cli backtest --config config.example.json --data data/sample_prices.csv
+# Just double-click AITradingRadar.exe
+# Or run from command line:
+AITradingRadar.exe [--skip-login] [--no-gui] [--auto-start]
 ```
 
-Generate a signal from local CSV data:
+---
+
+## Architecture
+
+```
++---------------------------------------------------------------------+
+|                      AI TRADING RADAR v2.0.0                        |
++----------+---------+-------------+----------+----------+-----------+
+|  Engine  | Broker  |  Dashboard  | Agents   | License  | Auto-     |
+|          |         |             |          |          | Update    |
+| Strategy | MT5     | Web HTTP    | Chief    | Serial   | Background|
+| Risk     | Finex   | Server 9190 | Trader   | Key      | Checker   |
+| Signal   | Paper   | SSE Updates | 20+ AI   | Valid.   | Download  |
+| Services | CCXT    | GUI (PyQt6) | Agents   |          | Installer |
++----------+---------+-------------+----------+----------+-----------+
+|  Services Layer: execution, market_data, position_state, risk, signal |
++----------------------------------------------------------------------+
+|        Shared State (Thread-Safe) -- dashboard_data.py                |
++----------------------------------------------------------------------+
+```
+
+### Multi-Agent AI Pipeline
+
+```
+Market Data → 20+ Specialized Agents → Chief Trader → Decision
+                                                        ↓
+                                              Signal Validation
+                                              Confidence Boost/Reduce
+                                              Entry Block Veto
+```
+
+---
+
+## Build from Source
+
+### Windows Executable
 
 ```powershell
-python -m aitrader_bot.cli signal --config config.example.json --data data/sample_prices.csv
+# Auto-build script (recommended)
+build_exe.bat
+
+# Or manually with PyInstaller:
+pip install pyinstaller
+
+pyinstaller --onefile --name "AITradingRadar" --icon "icon.ico" ^
+    --version-file "file_version_info.txt" ^
+    --hidden-import="MetaTrader5._core" ^
+    --hidden-import="pystray._win32" ^
+    --hidden-import="PIL._tkinter_finder" ^
+    --hidden-import="queue" ^
+    --hidden-import="threading" ^
+    --hidden-import="PyQt6" ^
+    --hidden-import="PyQt6.QtCore" ^
+    --hidden-import="PyQt6.QtGui" ^
+    --hidden-import="PyQt6.QtWidgets" ^
+    --add-data="config.example.json;." ^
+    --add-data="data;data" ^
+    --collect-all=aitrader_bot ^
+    run_scalping.py
 ```
 
-## Strategy Research
+### Windows Installer (Inno Setup)
 
-Run cost-aware walk-forward research on the bundled XAUUSD data:
+1. **Build the EXE first** (see above)
+2. **Download and install** [Inno Setup](https://jrsoftware.org/isdl.php)
+3. Open `installer.iss` in **Inno Setup Compiler**
+4. Click **Build** → **Compile**
+5. Output: `installer_output\AITradingRadar_Setup_v2.0.0.exe`
+
+> The installer supports **auto-upgrade** — it detects existing installations and preserves user config.
+
+### Automated Release
 
 ```powershell
-python -m aitrader_bot.cli research `
-  --config config_finex.example.json `
-  --data data/xauusd_5m_merged.csv `
-  --train-bars 3000 --test-bars 1000 --step-bars 1000 `
-  --spread-points 20 --slippage-points 2 `
-  --output research_report.json
+# Preview release steps
+python tools\release.py --dry-run
+
+# Full release (build + upload to GitHub)
+python tools\release.py --publish --token ghp_xxxx
 ```
 
-The report includes train-only parameter selection, unseen test-fold results,
-session performance in WIB, peak/trough/recovery drawdown duration, dataset-gap
-diagnostics, and separate spread, slippage, and commission costs. Every test
-window starts with a no-entry warm-up and is liquidated at its boundary for a
-comparable result. Research never rewrites a live configuration automatically.
-See [the recorded XAUUSD research run](docs/RESEARCH_2026-07-11.md) for the
-current findings and the decision not to promote a weak OOS edge to live.
-
-## MT5 Live Setup
-
-Copy an example config and fill in local credentials:
-
-```powershell
-copy config_xauusd_m1_ultra.example.json config_xauusd_m1_ultra.json
-```
-
-Edit only the local config file:
-
-```json
-"telegram": {
-  "enabled": true,
-  "bot_token": "YOUR_TELEGRAM_BOT_TOKEN",
-  "chat_id": "YOUR_CHAT_ID"
-},
-"brokers": {
-  "mt5": {
-    "backend": "mt5",
-    "server": "YOUR_MT5_SERVER",
-    "login": 12345678,
-    "password": "YOUR_MT5_PASSWORD"
-  }
-}
-```
-
-`config_xauusd_m1_ultra.json`, `config_finex.json`, and other live config files are ignored by Git.
-
-## Run Live Bot
-
-Start the M1 MT5 live engine in the background:
-
-```powershell
-Start-Process -FilePath "C:\Users\ASUS\AppData\Local\Python\pythoncore-3.14-64\python.exe" -ArgumentList @('run_scalping.py','--config','config_xauusd_m1_ultra.json','--broker','mt5','--no-gui','--no-tray','--auto-start') -WorkingDirectory "." -WindowStyle Hidden
-```
-
-Open the dashboard:
-
-```text
-http://127.0.0.1:9190
-```
-
-Check bot process ID:
-
-```powershell
-Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*run_scalping.py*' } | Select-Object ProcessId,CommandLine
-```
-
-Stop the bot:
-
-```powershell
-Stop-Process -Id YOUR_PROCESS_ID
-```
-
-Or stop every running bot process:
-
-```powershell
-Get-CimInstance Win32_Process |
-  Where-Object { $_.CommandLine -like '*run_scalping.py*' } |
-  ForEach-Object { Stop-Process -Id $_.ProcessId }
-```
+---
 
 ## Project Structure
 
-```text
-aitrader_bot/
-  app/             Web dashboard, GUI, tray, logging, Telegram notifier
-  broker/          Paper, MT5, CCXT, Alpaca broker adapters
-  backtest.py      Historical simulation engine
-  decision.py      Shared live, CLI, and backtest trading decisions
-  position_state.py Long/short and multi-ticket position state machine
-  research.py      Cost-aware simulator, session metrics, and drawdown analysis
-  walk_forward.py  Train/test parameter selection and OOS aggregation
-  services/        Market data, signal, risk, execution, and position services
-  scalping.py      XAUUSD scalping strategy and risk manager
-  strategy.py      Momentum signal model
-  config.py        Typed config loader
-data/              Sample and XAUUSD research datasets
-tests/             Unit tests
-run_scalping.py    Windows app/live engine launcher
+```
+ai-trading-radar/
+  aitrader_bot/              Core package
+    version.py               Single source of truth for version
+    updater.py               Auto-update system
+    config.py                Configuration loader
+    data.py                  Market data handlers
+    indicators.py            Technical indicators
+    strategy.py              Trading strategy logic
+    scalping.py              Scalping-specific logic
+    risk.py                  Risk management
+    portfolio.py             Portfolio tracking
+    licensing.py             Serial key licensing
+    models.py                Data models
+    backtest.py              Backtesting engine
+    decision.py              Unified trading decisions (NEW in v2.0.0)
+    position_state.py        Position state machine (NEW in v2.0.0)
+    research.py              Research tools (NEW in v2.0.0)
+    walk_forward.py          Walk-forward analysis (NEW in v2.0.0)
+    cli.py                   Command-line interface
+    agents/                  Multi-Agent AI System (NEW in v2.0.0)
+      chief_trader.py        Chief Trader - final decision maker
+      integration.py         Agent integration with trading engine
+      trend_analyst.py       Trend analysis agent
+      price_action.py        Price action patterns agent
+      market_structure.py    Market structure agent
+      liquidity.py           Liquidity analysis agent
+      volatility.py          Volatility regime agent
+      volume_profile.py      Volume profile agent
+      smart_money.py         Smart money concepts agent
+      session.py             Session analysis agent
+      correlation.py         Correlation analysis agent
+      risk_manager.py        Risk management agent
+      position_sizing.py     Position sizing agent
+      entry_strategy.py      Entry strategy agent
+      exit_strategy.py       Exit strategy agent
+      trade_management.py    Trade management agent
+      trade_execution.py     Execution agent
+      indicator_confirmation.py  Indicator confirmation agent
+      news_macro.py          News & macro analysis agent
+      performance_analyst.py Performance analysis agent
+      journal.py             Trading journal agent
+      order_flow.py          Order flow agent
+      base.py                Base agent class
+    services/                Service Layer (NEW in v2.0.0)
+      execution.py           Order execution service
+      market_data.py         Market data service
+      position_state.py      Position state service
+      risk.py                Risk service
+      signal.py              Signal generation service
+    broker/                  Broker integrations
+      mt5_broker.py          MetaTrader 5
+      paper_broker.py        Paper/demo trading
+      ccxt_broker.py         CCXT exchange support
+      alpaca_broker.py       Alpaca trading
+    app/                     Desktop application
+      login_dialog.py        MT5 Login popup (NEW in v2.0.0)
+      dashboard_template.html  Web dashboard UI
+      web_dashboard.py       HTTP server + SSE + MT5 account mgmt
+      dashboard_data.py      Shared state store
+      engine.py              Trading engine + multi-agent integration
+      gui.py                 PyQt6 dashboard with login info bar
+      tray.py                System tray icon
+      logger.py              Logging system
+      news_filter.py         News impact filter
+      notifier.py            Telegram notification
+  tools/                     Development tools
+    release.py               Release automation
+    make_serial.py           License key generator
+  data/                      Sample market data (CSV)
+  tests/                     Test suite
+  run_scalping.py            Entry point with login dialog
+  config.example.json        Example configuration
+  installer.iss              Inno Setup installer script
+  build_exe.bat              Windows build script
+  file_version_info.txt      Windows EXE metadata
+  requirements.txt           Python dependencies
+  pyproject.toml             Project metadata
 ```
 
-`TradingEngine` is a lifecycle orchestrator. Live-loop work is separated into
-five independently testable services: `MarketDataService` builds broker
-snapshots, `SignalService` evaluates strategy context, `RiskService` owns entry
-gates and shared decisions, `ExecutionService` reconciles orders, and
-`PositionStateService` keeps broker-authoritative ticket state.
+---
 
-## Configuration Profiles
+## Security
 
-- `config.example.json`: safe default paper config.
-- `config_finex.example.json`: sanitized 5-minute XAUUSD profile.
-- `config_xauusd_m1_ultra.example.json`: sanitized aggressive M1 profile.
+- **MT5 Credentials** — Entered via login dialog every session (not stored in config)
+- Never commit real MT5 credentials, Telegram tokens, API keys, or license files
+- All secrets are stored in `config.json` (gitignored)
+- License keys are stored in `%APPDATA%\AITradingRadar\license.json`
+- The `.gitignore` covers sensitive files by default
+- Password field uses `QLineEdit.EchoMode.Password` (masked input)
+- Password is never logged — only server and login are logged for debugging
 
-Position behavior is explicit in every safe template. Defaults preserve one position at a time:
-
-```json
-{
-  "scalping": {
-    "allow_long_entries": true,
-    "allow_short_entries": true,
-    "max_open_positions": 1,
-    "max_positions_per_side": 1,
-    "allow_scale_in": false,
-    "hedging_enabled": false,
-    "close_on_opposite_signal": true,
-    "opposite_exit_only_in_profit": true
-  }
-}
-```
-
-Set both position limits above `1` and enable `allow_scale_in` only after verifying that the connected broker account supports independent hedged tickets. MT5 netting accounts remain limited to one net position.
-
-Local live profiles are excluded from Git:
-
-- `config_finex.json`
-- `config_finex_aggressive_1m.json`
-- `config_xauusd_m1_ultra.json`
-
-## Safety Model
-
-Live execution uses fail-closed entry controls:
-
-- Session, news, and spread filters block new entries but never suppress management of an existing position.
-- Spread thresholds are compared in broker points using each quote's point size.
-- Live, CLI, and scalping backtest paths use the same decision service for
-  risk exits, signal actions, entry sizing, and position-policy enforcement.
-- Paper backtests execute buys at ask, sells at bid, and apply historical
-  session/news/spread gates rather than assuming cost-free fills.
-- MT5 and Paper entries attach stop-loss and take-profit prices to the order. Generic CCXT and Alpaca entries are blocked until their adapters implement atomic protective orders.
-- MT5 position timestamps and protective prices are recovered after restart; missing SL/TP is repaired through the broker when possible.
-- A position is recorded as closed only after the broker reports a full fill. Pending, partial, rejected, and missing close results keep local position state open.
-
-The repository also avoids accidental credential leakage:
-
-- Live configs are ignored by `.gitignore`.
-- Build artifacts, logs, cache files, and executable output are ignored.
-- Public examples contain blank tokens, blank passwords, and `null` login values.
-- The dashboard is local-only by default at `127.0.0.1`.
-
-Before pushing changes, scan staged files:
-
-```powershell
-git diff --cached --name-only
-git grep -n --cached -I -E "password|bot_token|api_key|secret|login"
-```
-
-## Roadmap
-
-- Risk dashboard with daily loss limits and max drawdown controls.
-- Calibration of simulated spread/slippage assumptions against broker fills.
-- Docker or Windows Task Scheduler deployment recipes.
-
-## Contributing
-
-Contributions, issues, and feature requests are welcome.
-
-Before opening a pull request:
-
-- Keep credentials, logs, and live broker configs out of commits.
-- Run `python -m unittest discover -s tests -v`.
-- Keep changes scoped and explain trading-behavior changes clearly.
-- Include sample data or tests when changing strategy/risk logic.
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the full contribution guide.
+---
 
 ## License
 
-This project is licensed under the **GNU General Public License v3.0**.
+**Proprietary** — Private distribution with serial-key activation.
 
-See [LICENSE](LICENSE) for the full license text.
+This software is not open-source. A valid license key is required to use the application.
 
-## Disclaimer
+---
 
-This software is provided for research, education, and engineering experimentation.
+<div align="center">
 
-It is **not financial advice**, investment advice, tax advice, legal advice, or a recommendation to buy or sell any instrument. Trading forex, CFDs, commodities, crypto, stocks, futures, or leveraged products involves substantial risk and may result in partial or total loss of capital.
+**Made for XAUUSD scalping — v2.0.0 with Multi-Agent AI**
 
-You are solely responsible for:
+[Download v2.0.0](https://github.com/dimaslukman-rgb/ai-trading-radar/releases/tag/v2.0.0)  |  [Report Bug](https://github.com/dimaslukman-rgb/ai-trading-radar/issues)  |  [View Dashboard](http://127.0.0.1:9190)
 
-- Reviewing the source code before use.
-- Testing in paper/demo environments.
-- Verifying broker settings, lot sizes, leverage, margin, symbols, spreads, and execution behavior.
-- Monitoring the bot while it is running.
-- Complying with local laws, broker rules, and exchange rules.
-
-The authors and contributors are not responsible for losses, damages, missed profits, account restrictions, broker errors, API outages, execution slippage, or any other consequence of using this software.
-
-## Contact
-
-- GitHub: [@dimaslukman-rgb](https://github.com/dimaslukman-rgb)
-- Repository: [dimaslukman-rgb/ai-trading-radar](https://github.com/dimaslukman-rgb/ai-trading-radar)
+</div>
