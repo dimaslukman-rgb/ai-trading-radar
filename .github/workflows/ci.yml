@@ -52,3 +52,13 @@ jobs:
           --config config.example.json
           --data data/sample_prices_5m.csv
           --mode scalping
+
+      - name: Smoke-test walk-forward research
+        run: >-
+          python -m aitrader_bot.cli research
+          --config config_finex.example.json
+          --data data/xauusd_5m_1000.csv
+          --train-bars 400
+          --test-bars 200
+          --max-candidates 2
+          --quiet

@@ -45,7 +45,20 @@ def create_broker(backend: str, **kwargs) -> BaseBroker:
         return _try_import("AlpacaBroker", "alpaca_broker", kwargs)
 
     # Default: paper
-    return PaperBroker(initial_cash=kwargs.get("initial_cash", 10000.0))
+    from .paper_broker import infer_contract_size, infer_leverage
+
+    symbol = kwargs.get("symbol", "")
+    market = kwargs.get("market", "")
+    return PaperBroker(
+        initial_cash=kwargs.get("initial_cash", 10000.0),
+        point_size=kwargs.get("point_size", 0.01),
+        spread_points=kwargs.get("spread_points", 10.0),
+        slippage_points=kwargs.get("slippage_points", 0.0),
+        commission_per_order=kwargs.get("commission_per_order", 0.0),
+        commission_per_unit=kwargs.get("commission_per_unit", 0.0),
+        contract_size=kwargs.get("contract_size", infer_contract_size(symbol, market)),
+        leverage=kwargs.get("leverage", infer_leverage(market)),
+    )
 
 
 def _try_import(class_name: str, module_name: str, kwargs: dict) -> BaseBroker:

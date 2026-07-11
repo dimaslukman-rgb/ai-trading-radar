@@ -24,6 +24,7 @@ config.local.json
 *.log
 bot_bg.log
 perf_report_latest.txt
+research_report*.json
 nul
 CUsersASUSDocumentsCodex2026-07-06saoutputsai-trading-botbot_bg.log
 

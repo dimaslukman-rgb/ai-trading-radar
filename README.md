@@ -111,6 +111,27 @@ Generate a signal from local CSV data:
 python -m aitrader_bot.cli signal --config config.example.json --data data/sample_prices.csv
 ```
 
+## Strategy Research
+
+Run cost-aware walk-forward research on the bundled XAUUSD data:
+
+```powershell
+python -m aitrader_bot.cli research `
+  --config config_finex.example.json `
+  --data data/xauusd_5m_merged.csv `
+  --train-bars 3000 --test-bars 1000 --step-bars 1000 `
+  --spread-points 20 --slippage-points 2 `
+  --output research_report.json
+```
+
+The report includes train-only parameter selection, unseen test-fold results,
+session performance in WIB, peak/trough/recovery drawdown duration, dataset-gap
+diagnostics, and separate spread, slippage, and commission costs. Every test
+window starts with a no-entry warm-up and is liquidated at its boundary for a
+comparable result. Research never rewrites a live configuration automatically.
+See [the recorded XAUUSD research run](docs/RESEARCH_2026-07-11.md) for the
+current findings and the decision not to promote a weak OOS edge to live.
+
 ## MT5 Live Setup
 
 Copy an example config and fill in local credentials:
@@ -182,6 +203,8 @@ aitrader_bot/
   backtest.py      Historical simulation engine
   decision.py      Shared live, CLI, and backtest trading decisions
   position_state.py Long/short and multi-ticket position state machine
+  research.py      Cost-aware simulator, session metrics, and drawdown analysis
+  walk_forward.py  Train/test parameter selection and OOS aggregation
   services/        Market data, signal, risk, execution, and position services
   scalping.py      XAUUSD scalping strategy and risk manager
   strategy.py      Momentum signal model
@@ -258,9 +281,8 @@ git grep -n --cached -I -E "password|bot_token|api_key|secret|login"
 
 ## Roadmap
 
-- Strategy performance reports by market session.
 - Risk dashboard with daily loss limits and max drawdown controls.
-- Walk-forward strategy validation with session and transaction-cost reports.
+- Calibration of simulated spread/slippage assumptions against broker fills.
 - Docker or Windows Task Scheduler deployment recipes.
 
 ## Contributing

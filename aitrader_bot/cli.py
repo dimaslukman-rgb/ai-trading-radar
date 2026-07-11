@@ -2,6 +2,7 @@
 
 Commands:
   backtest       Run backtest (momentum or scalping mode)
+  research       Cost-aware walk-forward strategy research
   signal         Generate signal (momentum or scalping mode)
   scalp          Live scalping loop via any broker (paper/mt5/binance/alpaca)
   broker         Test broker connection and get info/quote/positions
@@ -44,6 +45,26 @@ def main() -> None:
     bt.add_argument("--data", default="data/sample_prices.csv")
     bt.add_argument("--mode", choices=["momentum", "scalping"], default="momentum")
 
+    # ── research ────────────────────────────────────────────────────────
+    research = subparsers.add_parser(
+        "research",
+        help="Walk-forward optimization dan analisis biaya/sesi/drawdown",
+    )
+    research.add_argument("--config", default="config_finex.example.json")
+    research.add_argument("--data", default="data/xauusd_5m_merged.csv")
+    research.add_argument("--train-bars", type=int, default=3000)
+    research.add_argument("--test-bars", type=int, default=1000)
+    research.add_argument("--step-bars", type=int, default=None)
+    research.add_argument("--warmup-bars", type=int, default=50)
+    research.add_argument("--max-candidates", type=int, default=12)
+    research.add_argument("--minimum-trades", type=int, default=5)
+    research.add_argument("--spread-points", type=float, default=20.0)
+    research.add_argument("--slippage-points", type=float, default=2.0)
+    research.add_argument("--commission-per-order", type=float, default=0.0)
+    research.add_argument("--commission-per-unit", type=float, default=0.0)
+    research.add_argument("--output", default=None)
+    research.add_argument("--quiet", action="store_true")
+
     # ── signal ──────────────────────────────────────────────────────────
     sig = subparsers.add_parser("signal", help="Generate trading signal")
     sig.add_argument("--config", default="config.example.json")
@@ -77,6 +98,8 @@ def main() -> None:
 
     if args.command == "backtest":
         _cmd_backtest(args)
+    elif args.command == "research":
+        _cmd_research(args)
     elif args.command == "signal":
         _cmd_signal(args)
     elif args.command == "scalp":
@@ -108,6 +131,98 @@ def _cmd_backtest(args: argparse.Namespace) -> None:
             "reason": result.last_signal.reason,
         },
     }, indent=2))
+
+
+def _cmd_research(args: argparse.Namespace) -> None:
+    """Run cost sensitivity plus train-only selection / unseen test folds."""
+    from .research import TransactionCostModel, analyze_dataset, simulate_scalping
+    from .walk_forward import default_candidate_grid, walk_forward_optimize
+
+    config = load_config(args.config)
+    bars = read_csv_prices(args.data)
+    candidates = default_candidate_grid()[:max(1, args.max_candidates)]
+    costs = TransactionCostModel(
+        spread_points=args.spread_points,
+        slippage_points=args.slippage_points,
+        commission_per_order=args.commission_per_order,
+        commission_per_unit=args.commission_per_unit,
+    )
+    baseline = simulate_scalping(
+        config,
+        bars,
+        cost_model=costs,
+        warmup_bars=min(args.warmup_bars, len(bars) - 1),
+        liquidate_at_end=True,
+    )
+    zero_cost = TransactionCostModel(spread_points=0.0)
+    stress_cost = TransactionCostModel(
+        spread_points=min(
+            config.scalping.max_spread_points,
+            max(args.spread_points, args.spread_points * 1.25),
+        ),
+        slippage_points=args.slippage_points * 2,
+        commission_per_order=args.commission_per_order * 1.5,
+        commission_per_unit=args.commission_per_unit * 1.5,
+    )
+    sensitivity = {
+        "zero_cost": simulate_scalping(
+            config,
+            bars,
+            cost_model=zero_cost,
+            warmup_bars=min(args.warmup_bars, len(bars) - 1),
+            liquidate_at_end=True,
+        ).to_dict(),
+        "configured": baseline.to_dict(),
+        "stress": simulate_scalping(
+            config,
+            bars,
+            cost_model=stress_cost,
+            warmup_bars=min(args.warmup_bars, len(bars) - 1),
+            liquidate_at_end=True,
+        ).to_dict(),
+    }
+    walk_forward = walk_forward_optimize(
+        config,
+        bars,
+        candidates=candidates,
+        train_bars=args.train_bars,
+        test_bars=args.test_bars,
+        step_bars=args.step_bars,
+        warmup_bars=args.warmup_bars,
+        cost_model=costs,
+        minimum_train_trades=args.minimum_trades,
+    )
+    payload = {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "dataset": {
+            "path": args.data,
+            "symbol": config.symbol,
+            "bars": len(bars),
+            "start": bars[0].date.isoformat(),
+            "end": bars[-1].date.isoformat(),
+            "timestamp_policy": "naive CSV timestamps normalized as UTC; sessions reported in WIB",
+        },
+        "methodology": {
+            "selection": "train windows only",
+            "evaluation": "unseen test windows with pre-entry warmup",
+            "liquidation": "positions closed at each evaluation boundary",
+            "candidate_count": len(candidates),
+        },
+        "baseline": baseline.to_dict(),
+        "cost_sensitivity": sensitivity,
+        "walk_forward": walk_forward.to_dict(),
+    }
+    payload["dataset"]["diagnostics"] = {
+        key: (value.isoformat() if isinstance(value, datetime) else value)
+        for key, value in vars(analyze_dataset(bars)).items()
+    }
+    rendered = json.dumps(payload, indent=2, allow_nan=False)
+    if not args.quiet:
+        print(rendered)
+    if args.output:
+        output_path = Path(args.output)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(rendered + "\n", encoding="utf-8")
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -173,6 +288,8 @@ def _cmd_scalp(args: argparse.Namespace) -> None:
         paper=broker_cfg.paper,
         sandbox=broker_cfg.sandbox,
         initial_cash=config.risk.initial_cash,
+        symbol=symbol,
+        market=config.market,
     )
 
     mapped_symbol = broker.get_symbol_map(symbol)
@@ -388,6 +505,8 @@ def _cmd_broker(args: argparse.Namespace) -> None:
         paper=broker_cfg.paper,
         sandbox=broker_cfg.sandbox,
         initial_cash=config.risk.initial_cash,
+        symbol=symbol,
+        market=config.market,
     )
 
     try:
