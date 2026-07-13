@@ -2,6 +2,8 @@
 
 import unittest
 from datetime import datetime, timezone
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from aitrader_bot.backtest import run_backtest
 from aitrader_bot.broker import (
@@ -17,6 +19,7 @@ from aitrader_bot.models import PriceBar
 from aitrader_bot.scalping import ScalpingRiskManager, ScalpingStrategy
 from aitrader_bot.strategy import AiMomentumStrategy
 from aitrader_bot.version import VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH, VERSION_TUPLE
+from run_scalping import resolve_config_path
 
 
 def _bars() -> list[PriceBar]:
@@ -52,6 +55,25 @@ def _volatile_bars() -> list[PriceBar]:
 # ══════════════════════════════════════════════════════════════════════════
 
 class BotCoreTests(unittest.TestCase):
+    def test_default_config_prefers_finex_file_in_application_directory(self) -> None:
+        with TemporaryDirectory() as temporary_directory:
+            app_root = Path(temporary_directory)
+            (app_root / "config.json").write_text("{}", encoding="utf-8")
+            (app_root / "config_finex.json").write_text("{}", encoding="utf-8")
+
+            self.assertEqual(
+                resolve_config_path(None, app_root),
+                app_root / "config_finex.json",
+            )
+
+    def test_relative_config_is_resolved_from_application_directory(self) -> None:
+        with TemporaryDirectory() as temporary_directory:
+            app_root = Path(temporary_directory)
+            self.assertEqual(
+                resolve_config_path("custom.json", app_root),
+                app_root / "custom.json",
+            )
+
     def test_version_tuple_matches_version_components(self) -> None:
         """The package initializer and updater both require this export."""
         self.assertEqual(

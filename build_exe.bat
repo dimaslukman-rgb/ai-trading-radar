@@ -78,6 +78,7 @@ pyinstaller --onefile ^
     --hidden-import="queue" ^
     --hidden-import="threading" ^
     --add-data "config.example.json;." ^
+    --add-data "config_finex.example.json;." ^
     --add-data "data;data" ^
     --exclude-module "tools" ^
     --collect-all "aitrader_bot" ^
@@ -96,6 +97,7 @@ if exist "dist\AITradingRadar.exe" (
     
     REM Copy config and data
     copy "config.example.json" "dist\config.example.json" >nul 2>&1
+    copy "config_finex.example.json" "dist\config_finex.json" >nul 2>&1
     if not exist "dist\data" mkdir "dist\data"
     copy "data\sample_prices.csv" "dist\data\" >nul 2>&1
     

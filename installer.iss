@@ -10,7 +10,7 @@
 ;   - UsePreviousAppDir=yes → remembers install location
 
 #define MyAppName "AI Trading Radar"
-#define MyAppVersion "2.0.1"
+#define MyAppVersion "2.0.2"
 #define MyAppPublisher "AI Trading Radar"
 #define MyAppURL "https://github.com/dimaslukman-rgb/ai-trading-radar"
 #define MyAppExeName "AITradingRadar.exe"
@@ -51,6 +51,7 @@ Name: "autostart"; Description: "&Auto-start with Windows (recommended)"; GroupD
 [Files]
 Source: "dist\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "config.example.json"; DestDir: "{app}"; DestName: "config.json"; Flags: ignoreversion onlyifdoesntexist
+Source: "config_finex.example.json"; DestDir: "{app}"; DestName: "config_finex.json"; Flags: ignoreversion onlyifdoesntexist
 Source: "data\*"; DestDir: "{app}\data"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "README.md"; DestDir: "{app}"; Flags: ignoreversion
 

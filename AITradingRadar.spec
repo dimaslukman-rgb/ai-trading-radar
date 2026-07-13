@@ -1,7 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 from PyInstaller.utils.hooks import collect_all
 
-datas = [('config.example.json', '.'), ('data', 'data')]
+datas = [('config.example.json', '.'), ('config_finex.example.json', '.'), ('data', 'data')]
 binaries = []
 hiddenimports = ['MetaTrader5._core', 'pystray._win32', 'PIL._tkinter_finder', 'queue', 'threading']
 tmp_ret = collect_all('aitrader_bot')

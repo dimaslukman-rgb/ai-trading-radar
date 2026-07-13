@@ -13,11 +13,18 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import shutil
 import sys
 import time
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent
+APP_ROOT = (
+    Path(sys.executable).resolve().parent
+    if getattr(sys, "frozen", False)
+    else PROJECT_ROOT
+)
+RESOURCE_ROOT = Path(getattr(sys, "_MEIPASS", PROJECT_ROOT))
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from aitrader_bot.app.engine import TradingEngine
@@ -27,10 +34,46 @@ from aitrader_bot.app.login_dialog import LoginCredentials, ask_credentials_cons
 log = setup_logging(__name__, level=20)  # INFO
 
 
+def resolve_config_path(config_arg: str | None, app_root: Path | None = None) -> Path:
+    """Resolve config paths outside PyInstaller's temporary _MEI directory."""
+    root = app_root or APP_ROOT
+    if config_arg:
+        requested = Path(config_arg)
+        return requested if requested.is_absolute() else root / requested
+
+    for name in ("config_finex.json", "config.json"):
+        candidate = root / name
+        if candidate.exists():
+            return candidate
+    return root / "config_finex.json"
+
+
+def ensure_default_config(config_path: Path) -> bool:
+    """Create the Finex config for a first run when a template is available."""
+    if config_path.exists():
+        return True
+
+    templates = (
+        APP_ROOT / "config_finex.example.json",
+        RESOURCE_ROOT / "config_finex.example.json",
+    )
+    for template in templates:
+        if not template.exists():
+            continue
+        try:
+            config_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(template, config_path)
+            log.info("Created default configuration: %s", config_path)
+            return True
+        except OSError as exc:
+            log.warning("Could not create default configuration at %s: %s", config_path, exc)
+    return False
+
+
 def main():
     parser = argparse.ArgumentParser(description="AI Trading Bot - Windows App")
-    parser.add_argument("--config", default=str(PROJECT_ROOT / "config_finex.json"),
-                        help="Path ke config file. Gunakan config_finex_aggressive_1m.json untuk mode agresif M1 (default: config_finex.json)")
+    parser.add_argument("--config", default=None,
+                        help="Path ke config file (default: config_finex.json di folder aplikasi)")
     parser.add_argument("--broker", default="mt5",
                         help="Nama broker config (default/mt5/binance/alpaca)")
     parser.add_argument("--no-gui", action="store_true",
@@ -57,8 +100,8 @@ def main():
         print(check_text())
         sys.exit(0)
 
-    config_path = Path(args.config)
-    if not config_path.exists():
+    config_path = resolve_config_path(args.config)
+    if not ensure_default_config(config_path):
         log.error(f"Config file not found: {config_path}")
         print(f"[ERROR] Config file not found: {config_path}")
         sys.exit(1)

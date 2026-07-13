@@ -4,18 +4,23 @@
 
 **Professional Multi-Factor Analysis Engine — XAUUSD Scalping for MT5/Finex**
 
-[![Version](https://img.shields.io/badge/version-2.0.1-00ff88?style=for-the-badge&labelColor=0a0e17)](https://github.com/dimaslukman-rgb/ai-trading-radar/releases/tag/v2.0.1)
+[![Version](https://img.shields.io/badge/version-2.0.2-00ff88?style=for-the-badge&labelColor=0a0e17)](https://github.com/dimaslukman-rgb/ai-trading-radar/releases/tag/v2.0.2)
 [![Python](https://img.shields.io/badge/Python-3.10+-00d4ff?style=for-the-badge&labelColor=0a0e17&logo=python&logoColor=00d4ff)](https://python.org)
 [![License](https://img.shields.io/badge/License-Proprietary-a855f7?style=for-the-badge&labelColor=0a0e17)]()
 [![Platform](https://img.shields.io/badge/Platform-Windows-ffaa00?style=for-the-badge&labelColor=0a0e17&logo=windows&logoColor=ffaa00)]()
 
 Live AI-powered scalping signals, real-time dashboard, and automated MT5 execution — all in one Windows desktop application.
 
-[Download v2.0.1 Installer](https://github.com/dimaslukman-rgb/ai-trading-radar/releases/tag/v2.0.1)  |  [Report Bug](https://github.com/dimaslukman-rgb/ai-trading-radar/issues)  |  [View Dashboard Demo](https://github.com/dimaslukman-rgb/ai-trading-radar)
+[Download v2.0.2 Installer](https://github.com/dimaslukman-rgb/ai-trading-radar/releases/tag/v2.0.2)  |  [Report Bug](https://github.com/dimaslukman-rgb/ai-trading-radar/issues)  |  [View Dashboard Demo](https://github.com/dimaslukman-rgb/ai-trading-radar)
 
 </div>
 
 ---
+
+## What's New in v2.0.2
+
+- Fixed packaged startup so configuration is loaded from the installation folder, not PyInstaller's temporary `_MEI` directory
+- Added a first-run Finex configuration and retained the MT5 login dialog before the bot starts
 
 ## What's New in v2.0.1
 
@@ -249,7 +254,7 @@ pyinstaller --onefile --name "AITradingRadar" --icon "icon.ico" ^
 2. **Download and install** [Inno Setup](https://jrsoftware.org/isdl.php)
 3. Open `installer.iss` in **Inno Setup Compiler**
 4. Click **Build** → **Compile**
-5. Output: `installer_output\AITradingRadar_Setup_v2.0.1.exe`
+5. Output: `installer_output\AITradingRadar_Setup_v2.0.2.exe`
 
 > The installer supports **auto-upgrade** — it detects existing installations and preserves user config.
 
@@ -358,8 +363,8 @@ This software is not open-source. A valid license key is required to use the app
 
 <div align="center">
 
-**Made for XAUUSD scalping — v2.0.1 with Multi-Agent AI**
+**Made for XAUUSD scalping — v2.0.2 with Multi-Agent AI**
 
-[Download v2.0.1](https://github.com/dimaslukman-rgb/ai-trading-radar/releases/tag/v2.0.1)  |  [Report Bug](https://github.com/dimaslukman-rgb/ai-trading-radar/issues)  |  [View Dashboard](http://127.0.0.1:9190)
+[Download v2.0.2](https://github.com/dimaslukman-rgb/ai-trading-radar/releases/tag/v2.0.2)  |  [Report Bug](https://github.com/dimaslukman-rgb/ai-trading-radar/issues)  |  [View Dashboard](http://127.0.0.1:9190)
 
 </div>
