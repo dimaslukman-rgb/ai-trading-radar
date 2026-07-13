@@ -1,34 +1,15 @@
 # -*- mode: python ; coding: utf-8 -*-
-
 from PyInstaller.utils.hooks import collect_all
 
-datas = [
-    ("config.example.json", "."),
-    ("data", "data"),
-]
+datas = [('config.example.json', '.'), ('data', 'data')]
 binaries = []
-hiddenimports = [
-    "MetaTrader5._core",
-    "PyQt6",
-    "PyQt6.QtCore",
-    "PyQt6.QtGui",
-    "PyQt6.QtWidgets",
-    "pystray._win32",
-    "PIL._tkinter_finder",
-    "queue",
-    "threading",
-    "tkinter",
-    "tkinter.simpledialog",
-    "tkinter.messagebox",
-]
+hiddenimports = ['MetaTrader5._core', 'pystray._win32', 'PIL._tkinter_finder', 'queue', 'threading']
+tmp_ret = collect_all('aitrader_bot')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
-tmp_ret = collect_all("aitrader_bot")
-datas += tmp_ret[0]
-binaries += tmp_ret[1]
-hiddenimports += tmp_ret[2]
 
 a = Analysis(
-    ["run_scalping.py"],
+    ['run_scalping.py'],
     pathex=[],
     binaries=binaries,
     datas=datas,
@@ -36,7 +17,7 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=["tests"],
+    excludes=['tools'],
     noarchive=False,
     optimize=0,
 )
@@ -48,11 +29,11 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name="AITradingRadar",
+    name='AITradingRadar',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=False,
+    upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
     console=True,
@@ -61,5 +42,6 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=["icon.ico"],
+    version='file_version_info.txt',
+    icon=['icon.ico'],
 )

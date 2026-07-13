@@ -16,6 +16,7 @@ from aitrader_bot.config import BotConfig, ScalpingConfig
 from aitrader_bot.models import PriceBar
 from aitrader_bot.scalping import ScalpingRiskManager, ScalpingStrategy
 from aitrader_bot.strategy import AiMomentumStrategy
+from aitrader_bot.version import VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH, VERSION_TUPLE
 
 
 def _bars() -> list[PriceBar]:
@@ -51,6 +52,13 @@ def _volatile_bars() -> list[PriceBar]:
 # ══════════════════════════════════════════════════════════════════════════
 
 class BotCoreTests(unittest.TestCase):
+    def test_version_tuple_matches_version_components(self) -> None:
+        """The package initializer and updater both require this export."""
+        self.assertEqual(
+            VERSION_TUPLE,
+            (VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH),
+        )
+
     def test_strategy_returns_signal(self) -> None:
         config = BotConfig()
         signal = AiMomentumStrategy(config.strategy).generate("TEST", _bars())

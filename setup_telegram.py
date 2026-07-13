@@ -1,5 +1,5 @@
-﻿#!/usr/bin/env python3
-"""Telegram Setup Helper â€” cari chat.id dan update config.
+#!/usr/bin/env python3
+"""Telegram Setup Helper — cari chat.id dan update config.
 
 Jalankan:
     python setup_telegram.py
@@ -31,7 +31,7 @@ RESET = "\033[0m"
 def main():
     print(f"\n{BOLD}=== TELEGRAM SETUP ==={RESET}\n")
 
-    # â”€â”€ Step 1: Input Token â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── Step 1: Input Token ────────────────────────────────────────────
     print(f"{BOLD}[1] Masukkan Bot Token{RESET}")
     print(f"  Dapat dari {CYAN}@BotFather{RESET} di Telegram.")
     print(f"  Format: {YELLOW}1234567890:ABC-DEF1234ghIkl-zyx57W2v1u123ew11{RESET}")
@@ -42,7 +42,7 @@ def main():
         print(f"  {RED}Token tidak boleh kosong!{RESET}")
         return
 
-    # â”€â”€ Step 2: Test Token â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── Step 2: Test Token ─────────────────────────────────────────────
     print(f"\n{BOLD}[2] Test Token...{RESET}")
 
     try:
@@ -63,7 +63,7 @@ def main():
         else:
             print(f"  {RED}Token tidak valid!{RESET}")
             print(f"  Error: {data.get('description', 'unknown')}")
-            print(f"\n  {YELLOW}Coba ulang dari @BotFather â†’ /mybots â†’ API Token{RESET}")
+            print(f"\n  {YELLOW}Coba ulang dari @BotFather → /mybots → API Token{RESET}")
             return
     except requests.exceptions.ConnectionError:
         print(f"  {RED}Gagal konek ke Telegram. Cek internet.{RESET}")
@@ -72,7 +72,7 @@ def main():
         print(f"  {RED}Error: {e}{RESET}")
         return
 
-    # â”€â”€ Step 3: Cari Chat ID â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── Step 3: Cari Chat ID ───────────────────────────────────────────
     print(f"\n{BOLD}[3] Cari Chat ID...{RESET}")
 
     chat_id = None
@@ -147,7 +147,7 @@ def main():
         print(f"  {RED}Error: {e}{RESET}")
         return
 
-    # â”€â”€ Step 4: Test Kirim Pesan â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── Step 4: Test Kirim Pesan ──────────────────────────────────────
     print(f"\n{BOLD}[4] Test Kirim Pesan...{RESET}")
 
     try:
@@ -155,7 +155,7 @@ def main():
             f"https://api.telegram.org/bot{token}/sendMessage",
             data={
                 "chat_id": chat_id,
-                "text": "[TEST] AI Trading Radar Telegram berhasil terhubung!",
+                "text": "[TEST] AI Trading Bot Telegram berhasil terhubung!",
             },
             timeout=10,
         )
@@ -169,7 +169,7 @@ def main():
         print(f"  {RED}Error: {e}{RESET}")
         return
 
-    # â”€â”€ Step 5: Update Config â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── Step 5: Update Config ──────────────────────────────────────────
     print(f"\n{BOLD}[5] Update Config...{RESET}")
 
     config_path = PROJECT_ROOT / "config_finex.json"
@@ -188,7 +188,7 @@ def main():
     config_path.write_text(json.dumps(config, indent=2), encoding="utf-8")
     print(f"  {GREEN}Config updated: {config_path}{RESET}")
 
-    # â”€â”€ Done â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── Done ───────────────────────────────────────────────────────────
     print(f"\n{BOLD}{'='*50}{RESET}")
     print(f"{GREEN}  TELEGRAM SETUP BERHASIL!{RESET}")
     print(f"{BOLD}{'='*50}{RESET}")
@@ -211,4 +211,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

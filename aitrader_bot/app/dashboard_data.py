@@ -1,8 +1,7 @@
 """Thread-safe shared data store for the web dashboard.
 
 Engine writes real-time data here; the web HTTP server reads from here.
-Expanded for AI Trading Radar with multi-factor confidence analysis
-and auto-update tracking.
+Expanded for AI Trading Radar with multi-factor confidence analysis.
 """
 
 from __future__ import annotations
@@ -11,7 +10,7 @@ import threading
 from datetime import datetime
 from typing import Any
 
-from aitrader_bot.version import __version__ as _current_version
+from aitrader_bot.updater import UpdateState, get_state
 
 _dashboard_data: dict[str, Any] = {
     "status": "stopped",
@@ -28,12 +27,35 @@ _dashboard_data: dict[str, Any] = {
     "broker": "mt5",
     "telegram": False,
     "trades": [],
+    "open_positions": [],
     "logs": [],
     "started_at": None,
+    "update": {
+        "current_version": "",
+        "latest_version": "",
+        "update_available": False,
+        "download_url": "",
+        "release_notes": "",
+        "release_date": "",
+        "asset_name": "",
+        "asset_size": 0,
+        "download_progress": 0.0,
+        "downloading": False,
+        "download_complete": False,
+        "error": "",
+        "last_checked": "Never",
+        "status": "idle",
+    },
     # ── Aggressive Mode ─────────────────────────────────────────────
     "aggressive_mode": False,
     "entry_time": None,
     "timeout_minutes": 0,
+    # ── MT5 Account Management ─────────────────────────────────────
+    "mt5_connected": False,
+    "mt5_login": None,
+    "mt5_server": "",
+    "mt5_account_info": None,
+    "mt5_last_error": "",
     # ── AI Trading Radar fields ────────────────────────────────────
     "confidence_pct": 0,
     "confidence_category": "NO TRADE",
@@ -53,6 +75,13 @@ _dashboard_data: dict[str, Any] = {
     "sentiment": {"bullish": 0, "bearish": 0, "neutral": 100},
     "volatility": "NORMAL",
     "news_events": [],
+    "macro_sentiment": {
+        "bias": "NEUTRAL",
+        "risk_score": 25,
+        "summary": "Waiting for macro catalyst scan...",
+        "updated_at": "",
+        "drivers": [],
+    },
     "analysis": {
         "trend": False,
         "ema": False,
@@ -64,23 +93,6 @@ _dashboard_data: dict[str, Any] = {
         "macd": False,
         "fvg": False,
         "news_clear": True,
-    },
-    # ── Auto-Update ─────────────────────────────────────────────────
-    "update": {
-        "current_version": _current_version,
-        "latest_version": "",
-        "update_available": False,
-        "download_url": "",
-        "release_notes": "",
-        "release_date": "",
-        "asset_name": "",
-        "asset_size": 0,
-        "download_progress": 0.0,
-        "download_complete": False,
-        "downloading": False,
-        "error": "",
-        "last_checked": "Never",
-        "status": "idle",
     },
 }
 
@@ -98,6 +110,21 @@ def update(**kwargs: Any) -> None:
         _dashboard_data.update(kwargs)
         if "equity" in kwargs:
             _recompute_equity_metrics()
+
+
+def reset_account_metrics(equity: float, balance: float) -> None:
+    """Reset account baseline for a fresh bot run.
+
+    This makes dashboard % P/L start from 0.00% whenever the trading engine
+    connects after a process restart or manual start.
+    """
+    with _lock:
+        _dashboard_data["equity"] = equity
+        _dashboard_data["initial_equity"] = equity
+        _dashboard_data["peak_equity"] = equity
+        _dashboard_data["pl_pct"] = 0.0
+        _dashboard_data["drawdown_pct"] = 0.0
+        _dashboard_data["balance"] = balance
 
 
 def _recompute_equity_metrics() -> None:
@@ -133,8 +160,7 @@ def add_log(msg: str) -> None:
 
 
 def add_trade(action: str, symbol: str, price: float, qty: float,
-              reason: str, pnl: float | None = None,
-              status: str | None = None) -> None:
+              reason: str, pnl: float | None = None) -> None:
     """Record a trade event."""
     with _lock:
         trade = {
@@ -145,23 +171,26 @@ def add_trade(action: str, symbol: str, price: float, qty: float,
             "qty": round(qty, 4),
             "reason": reason[:60],
             "pnl": round(pnl, 2) if pnl is not None else None,
-            "status": status or ("OPEN" if "BUY" in action else "CLOSED"),
         }
         _dashboard_data["trades"].append(trade)
         if len(_dashboard_data["trades"]) > 100:
             _dashboard_data["trades"] = _dashboard_data["trades"][-100:]
 
-
-def update_update_state(update_data: dict) -> None:
-    """Update the auto-update section of dashboard data."""
+def update_mt5_status(connected: bool, login: int | None = None, server: str = "",
+                    account_info: dict | None = None, last_error: str = "") -> None:
+    """Update MT5 connection status and account information."""
     with _lock:
-        _dashboard_data["update"].update(update_data)
+        _dashboard_data["mt5_connected"] = connected
+        _dashboard_data["mt5_login"] = login
+        _dashboard_data["mt5_server"] = server
+        _dashboard_data["mt5_account_info"] = account_info
+        _dashboard_data["mt5_last_error"] = last_error
 
 
 def snapshot() -> dict[str, Any]:
     """Return a thread-safe copy of all current data."""
     with _lock:
-        return {
+        data = {
             "status": _dashboard_data["status"],
             "equity": _dashboard_data["equity"],
             "initial_equity": _dashboard_data["initial_equity"],
@@ -176,13 +205,17 @@ def snapshot() -> dict[str, Any]:
             "broker": _dashboard_data["broker"],
             "telegram": _dashboard_data["telegram"],
             "trades": list(_dashboard_data["trades"]),
+            "open_positions": list(_dashboard_data["open_positions"]),
             "logs": list(_dashboard_data["logs"]),
             "started_at": _dashboard_data["started_at"],
-            # ── Aggressive Mode ───────────────────────────────────
             "aggressive_mode": _dashboard_data["aggressive_mode"],
             "entry_time": _dashboard_data["entry_time"],
             "timeout_minutes": _dashboard_data["timeout_minutes"],
-            # ── AI Trading Radar ───────────────────────────────────
+            "mt5_connected": _dashboard_data["mt5_connected"],
+            "mt5_login": _dashboard_data["mt5_login"],
+            "mt5_server": _dashboard_data["mt5_server"],
+            "mt5_account_info": _dashboard_data["mt5_account_info"],
+            "mt5_last_error": _dashboard_data["mt5_last_error"],
             "confidence_pct": _dashboard_data["confidence_pct"],
             "confidence_category": _dashboard_data["confidence_category"],
             "signal_action": _dashboard_data["signal_action"],
@@ -196,7 +229,10 @@ def snapshot() -> dict[str, Any]:
             "sentiment": dict(_dashboard_data["sentiment"]),
             "volatility": _dashboard_data["volatility"],
             "news_events": list(_dashboard_data["news_events"]),
+            "macro_sentiment": dict(_dashboard_data["macro_sentiment"]),
             "analysis": dict(_dashboard_data["analysis"]),
-            # ── Auto-Update ────────────────────────────────────────
-            "update": dict(_dashboard_data["update"]),
         }
+
+    # Do not hold the dashboard lock while accessing the updater state.
+    data["update"] = get_state().to_dict()
+    return data

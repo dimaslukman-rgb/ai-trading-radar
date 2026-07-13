@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""AI Trading Radar — Windows Desktop Application.
+"""AI Trading Bot — Windows Desktop Application.
 
 Usage:
     python run_scalping.py                    # Tray + Dashboard mode
@@ -8,59 +8,30 @@ Usage:
     python run_scalping.py --no-gui --no-tray # CLI mode
     python run_scalping.py --broker mt5 --auto-start  # Finex auto-start
     python run_scalping.py --config config_finex.json --broker mt5 --no-gui
-    python run_scalping.py --check-update     # Check for updates
-    python run_scalping.py --version          # Show version info
 """
 
 from __future__ import annotations
 
 import argparse
-import shutil
 import sys
 import time
 from pathlib import Path
 
-def _app_dir() -> Path:
-    """Return the external app directory, not PyInstaller's temp folder."""
-    if getattr(sys, "frozen", False):
-        return Path(sys.executable).resolve().parent
-    return Path(__file__).resolve().parent
+PROJECT_ROOT = Path(__file__).resolve().parent
+sys.path.insert(0, str(PROJECT_ROOT))
 
+from aitrader_bot.app.engine import TradingEngine
+from aitrader_bot.app.logger import setup_logging
+from aitrader_bot.app.login_dialog import LoginCredentials, ask_credentials_console, ask_credentials_gui
 
-APP_DIR = _app_dir()
-BUNDLE_DIR = Path(getattr(sys, "_MEIPASS", APP_DIR))
-PROJECT_ROOT = APP_DIR
-if not getattr(sys, "frozen", False):
-    sys.path.insert(0, str(PROJECT_ROOT))
+log = setup_logging(__name__, level=20)  # INFO
 
-
-def _default_config_path() -> Path:
-    """Prefer editable config next to the executable."""
-    for candidate in (
-        APP_DIR / "config.json",
-        APP_DIR / "config_finex.json",
-        APP_DIR / "config.example.json",
-    ):
-        if candidate.exists():
-            return candidate
-
-    for bundled_name in ("config.json", "config.example.json"):
-        bundled = BUNDLE_DIR / bundled_name
-        if bundled.exists():
-            target = APP_DIR / "config.json"
-            try:
-                shutil.copyfile(bundled, target)
-                return target
-            except OSError:
-                return bundled
-
-    return APP_DIR / "config.json"
 
 def main():
-    parser = argparse.ArgumentParser(description="AI Trading Radar - Windows App")
-    parser.add_argument("--config", default=str(_default_config_path()),
+    parser = argparse.ArgumentParser(description="AI Trading Bot - Windows App")
+    parser.add_argument("--config", default=str(PROJECT_ROOT / "config_finex.json"),
                         help="Path ke config file. Gunakan config_finex_aggressive_1m.json untuk mode agresif M1 (default: config_finex.json)")
-    parser.add_argument("--broker", default="default",
+    parser.add_argument("--broker", default="mt5",
                         help="Nama broker config (default/mt5/binance/alpaca)")
     parser.add_argument("--no-gui", action="store_true",
                         help="Jalankan tanpa dashboard GUI")
@@ -68,83 +39,66 @@ def main():
                         help="Jalankan tanpa system tray icon")
     parser.add_argument("--auto-start", action="store_true",
                         help="Auto-start scalping engine")
-    parser.add_argument("--license-key",
-                        help="Aktivasi serial key tanpa prompt")
-    parser.add_argument("--license-info", action="store_true",
-                        help="Tampilkan status serial key lalu keluar")
-    parser.add_argument("--reset-license", action="store_true",
-                        help="Hapus serial key tersimpan lalu keluar")
-    # Update System
+    parser.add_argument("--skip-login", action="store_true",
+                        help="Skip popup login, pakai kredensial dari config file")
     parser.add_argument("--check-update", action="store_true",
-                        help="Periksa update versi terbaru via GitHub Releases")
+                        help="Cek update dari GitHub Releases")
     parser.add_argument("--version", action="store_true",
-                        help="Tampilkan versi aplikasi saat ini")
+                        help="Tampilkan versi aplikasi")
     args = parser.parse_args()
 
-    # Handle version flag early
     if args.version:
-        from aitrader_bot.version import version_info_text
-        print(version_info_text())
-        return
+        from aitrader_bot.version import __version__
+        print(f"AI Trading Radar v{__version__}")
+        sys.exit(0)
 
-    # Handle update check flag early
     if args.check_update:
         from aitrader_bot.updater import check_text
         print(check_text())
-        return
-
-    from aitrader_bot.licensing import (
-        LicenseError,
-        ensure_license,
-        license_status_text,
-        reset_stored_license,
-    )
-
-    if args.reset_license:
-        removed = reset_stored_license()
-        print("[LICENSE] Serial key tersimpan dihapus." if removed else "[LICENSE] Tidak ada serial key tersimpan.")
-        if not args.license_key:
-            return
-
-    if args.license_info:
-        print(license_status_text())
-        return
-
-    try:
-        license_info = ensure_license(
-            provided_key=args.license_key,
-            use_gui_prompt=not (args.no_gui and args.no_tray),
-        )
-    except LicenseError as e:
-        print(f"[LICENSE ERROR] {e}")
-        sys.exit(2)
-
-    from aitrader_bot.app.engine import TradingEngine
-    from aitrader_bot.app.logger import setup_logging
-    from aitrader_bot.version import __version__
-
-    log = setup_logging(__name__, level=20)  # INFO
+        sys.exit(0)
 
     config_path = Path(args.config)
-    if not config_path.is_absolute() and not config_path.exists():
-        app_relative = APP_DIR / config_path
-        if app_relative.exists():
-            config_path = app_relative
     if not config_path.exists():
         log.error(f"Config file not found: {config_path}")
         print(f"[ERROR] Config file not found: {config_path}")
         sys.exit(1)
 
-    log.info("=== AI Trading Radar Starting ===")
-    log.info(f"Version: {__version__}")
+    log.info("=== AI Trading Bot Starting ===")
     log.info(f"Config: {config_path}")
     log.info(f"Broker: {args.broker}")
-    log.info(f"License: {license_info.plan_label}, expires {license_info.expires_label}, id {license_info.license_id}")
 
-    # Initialize Engine
-    engine = TradingEngine(str(config_path), args.broker)
+    # ── Login Dialog (minta kredensial MT5) ──────────────────────────
+    credentials: LoginCredentials | None = None
 
-    # Start Web Dashboard (always, browser-based)
+    if not args.skip_login:
+        def _on_login(creds: LoginCredentials) -> None:
+            nonlocal credentials
+            credentials = creds
+
+        if args.no_gui and args.no_tray:
+            # CLI mode — pakai console input
+            creds = ask_credentials_console()
+            _on_login(creds)
+        else:
+            # GUI mode — tampilkan popup PyQt6
+            ask_credentials_gui(_on_login)
+
+        if credentials is None or not credentials.confirmed:
+            log.info("Login dibatalkan oleh user")
+            print("[INFO] Login dibatalkan. Bot tidak dijalankan.")
+            return
+
+        log.info(f"Login credentials received — Server: {credentials.server}, Login: {credentials.login}")
+        # Auto-start engine setelah login berhasil
+        _auto_start = True
+    else:
+        log.info("Skip login — menggunakan kredensial dari config file")
+        _auto_start = args.auto_start
+
+    # ── Initialize Engine ──────────────────────────────────────────────
+    engine = TradingEngine(str(config_path), args.broker, credentials=credentials)
+
+    # ── Start Web Dashboard (always, browser-based) ────────────────────
     from aitrader_bot.app.web_dashboard import start_web_dashboard
     web_server = None
     for port in list(range(9190, 9200)) + list(range(9090, 9100)):
@@ -157,13 +111,7 @@ def main():
     if web_server is None:
         log.warning("Web dashboard: no available port (tried 8080-8083)")
 
-    # Start Background Update Checker
-    from aitrader_bot.updater import UpdateChecker
-    update_checker = UpdateChecker()
-    update_checker.start()
-    log.info("Background update checker started")
-
-    # Start GUI Dashboard (optional, PyQt6)
+    # ── Start GUI Dashboard (optional, PyQt6) ──────────────────────────
     dashboard = None
     if not args.no_gui:
         try:
@@ -179,7 +127,7 @@ def main():
     # Tentukan apakah dashboard bisa dibuat ulang dari tray
     _dashboard_enabled = not args.no_gui
 
-    # Start System Tray (optional)
+    # ── Start System Tray (optional) ───────────────────────────────────
     tray = None
     if not args.no_tray:
         try:
@@ -217,14 +165,14 @@ def main():
             log.warning(f"System tray failed: {e}")
             tray = None
 
-    # Auto-start if requested
-    if args.auto_start:
-        log.info("Auto-start enabled - starting engine")
+    # ── Auto-start engine ──────────────────────────────────────────────
+    if _auto_start:
+        log.info("Auto-start engine")
         engine.start()
 
-    # CLI mode (no GUI, no tray)
+    # ── CLI mode (no GUI, no tray) ─────────────────────────────────────
     if args.no_gui and args.no_tray:
-        print("AI Trading Radar - CLI Mode")
+        print("AI Trading Bot - CLI Mode")
         print(f"  Config: {config_path}")
         print(f"  Broker: {args.broker}")
         print("\nCommands: start, stop, status, exit")
@@ -261,7 +209,7 @@ def main():
             engine.stop()
         return
 
-    # Normal mode — keep alive
+    # ── Normal mode — keep alive ───────────────────────────────────────
     try:
         if dashboard and hasattr(dashboard, "_app"):
             # Prevent Qt from quitting when window is hidden (close → hide)
@@ -279,12 +227,11 @@ def main():
         log.info("Shutdown by user")
     finally:
         engine.stop()
-        update_checker.stop()
         if tray:
             tray.stop()
         if web_server:
             web_server.shutdown()
-        log.info(f"=== AI Trading Radar v{__version__} Stopped ===")
+        log.info("=== AI Trading Bot Stopped ===")
 
 
 if __name__ == "__main__":

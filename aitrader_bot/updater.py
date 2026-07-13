@@ -45,7 +45,7 @@ from .version import __version__, APP_NAME, APP_SHORT_NAME, VERSION_TUPLE
 # ── Defaults ───────────────────────────────────────────────────────────
 # These can be overridden via environment variables
 # Default values match the project's GitHub repository
-_GITHUB_OWNER = os.environ.get("AITRADAR_GITHUB_OWNER", "ai-trading-bot")
+_GITHUB_OWNER = os.environ.get("AITRADAR_GITHUB_OWNER", "dimaslukman-rgb")
 _GITHUB_REPO = os.environ.get("AITRADAR_GITHUB_REPO", "ai-trading-radar")
 _GITHUB_API = "https://api.github.com"
 

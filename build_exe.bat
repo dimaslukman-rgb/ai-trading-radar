@@ -8,7 +8,7 @@ echo ========================================
 echo.
 
 REM ── Read version from version.py ─────────────────────────────────
-for /f "tokens=2 delims==" %%a in ('python -c "import sys; sys.path.insert(0,'.'); from aitrader_bot.version import __version__; print(__version__)"') do set APP_VERSION=%%a
+for /f "delims=" %%a in ('python -c "import sys; sys.path.insert(0,'.'); from aitrader_bot.version import __version__; print(__version__)"') do set APP_VERSION=%%a
 if "%APP_VERSION%"=="" (
     echo [ERROR] Cannot read version from aitrader_bot/version.py
     pause
@@ -79,6 +79,7 @@ pyinstaller --onefile ^
     --hidden-import="threading" ^
     --add-data "config.example.json;." ^
     --add-data "data;data" ^
+    --exclude-module "tools" ^
     --collect-all "aitrader_bot" ^
     --clean ^
     --noconfirm ^

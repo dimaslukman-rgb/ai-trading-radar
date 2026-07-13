@@ -1,4 +1,4 @@
-﻿"""PyQt6 Dashboard â€” real-time status window for the scalping bot.
+"""PyQt6 Dashboard — real-time status window for the scalping bot.
 
 Shows:
   - Connection status (green/red indicator)
@@ -21,7 +21,7 @@ log = setup_logging(__name__)
 
 
 class DashboardWindow:
-    """PyQt6 dashboard â€” opens in a separate window."""
+    """PyQt6 dashboard — opens in a separate window."""
 
     def __init__(self, queue: Queue, on_close: Callable | None = None):
         self.queue = queue
@@ -36,11 +36,13 @@ class DashboardWindow:
         self._last_signal = "-"
         self._positions: list[str] = []
         self._log_lines: list[str] = []
+        self._login_server = ""
+        self._login_user = ""
 
     def show(self) -> None:
         """Open or unhide the dashboard window."""
         if self._window:
-            # Window exists but is hidden â€” unhide it
+            # Window exists but is hidden — unhide it
             self._window.show()
             self._window.raise_()
             self._window.activateWindow()
@@ -75,7 +77,7 @@ class DashboardWindow:
 
         # Main window
         self._window = QMainWindow()
-        self._window.setWindowTitle("AI Trading Radar â€” Dashboard")
+        self._window.setWindowTitle("AI Trading Bot — Dashboard")
         self._window.setMinimumSize(700, 500)
         self._window.resize(800, 600)
 
@@ -86,12 +88,12 @@ class DashboardWindow:
         layout.setSpacing(8)
         layout.setContentsMargins(12, 12, 12, 12)
 
-        # â”€â”€ Status bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # ── Status bar ────────────────────────────────────────────────
         status_frame = QFrame()
         status_frame.setFrameShape(QFrame.Shape.StyledPanel)
         status_layout = QHBoxLayout(status_frame)
 
-        self._status_indicator = QLabel("â—")
+        self._status_indicator = QLabel("●")
         self._status_indicator.setStyleSheet("color: gray; font-size: 18px;")
         status_layout.addWidget(self._status_indicator)
 
@@ -107,13 +109,19 @@ class DashboardWindow:
 
         layout.addWidget(status_frame)
 
-        # â”€â”€ Controls â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # ── Login info bar ────────────────────────────────────────────
+        self._login_label = QLabel("Server: — | User: —")
+        self._login_label.setFont(QFont("Consolas", 9))
+        self._login_label.setStyleSheet("color: #888; padding: 2px 6px;")
+        layout.addWidget(self._login_label)
+
+        # ── Controls ──────────────────────────────────────────────────
         controls = QHBoxLayout()
-        self._start_btn = QPushButton("â–¶ Start")
+        self._start_btn = QPushButton("▶ Start")
         self._start_btn.clicked.connect(self._on_start_click)
         controls.addWidget(self._start_btn)
 
-        self._stop_btn = QPushButton("â¹ Stop")
+        self._stop_btn = QPushButton("⏹ Stop")
         self._stop_btn.setEnabled(False)
         self._stop_btn.clicked.connect(self._on_stop_click)
         controls.addWidget(self._stop_btn)
@@ -121,7 +129,7 @@ class DashboardWindow:
         controls.addStretch()
         layout.addLayout(controls)
 
-        # â”€â”€ Positions table â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # ── Positions table ───────────────────────────────────────────
         self._pos_table = QTableWidget(0, 4)
         self._pos_table.setHorizontalHeaderLabels(["Symbol", "Qty", "Entry", "P&L"])
         self._pos_table.setMaximumHeight(120)
@@ -129,7 +137,7 @@ class DashboardWindow:
         layout.addWidget(QLabel("Open Positions:"))
         layout.addWidget(self._pos_table)
 
-        # â”€â”€ Last signal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # ── Last signal ────────────────────────────────────────────────
         self._signal_label = QLabel("Last Signal: --")
         self._signal_label.setWordWrap(True)
         self._signal_label.setStyleSheet(
@@ -137,7 +145,7 @@ class DashboardWindow:
         )
         layout.addWidget(self._signal_label)
 
-        # â”€â”€ Log viewer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # ── Log viewer ─────────────────────────────────────────────────
         self._log_view = QPlainTextEdit()
         self._log_view.setReadOnly(True)
         self._log_view.setMaximumBlockCount(500)
@@ -148,7 +156,7 @@ class DashboardWindow:
         layout.addWidget(QLabel("Log:"))
         layout.addWidget(self._log_view)
 
-        # â”€â”€ Timer to poll queue â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # ── Timer to poll queue ────────────────────────────────────────
         self._timer = QTimer()
         self._timer.timeout.connect(self._poll_queue)
         self._timer.start(500)  # every 500ms
@@ -157,7 +165,7 @@ class DashboardWindow:
         self._running = True
 
         def on_close_event(event):
-            """Hide window instead of closing â€” keeps engine alive in background."""
+            """Hide window instead of closing — keeps engine alive in background."""
             event.ignore()
             self._window.hide()
             self._running = False
@@ -183,7 +191,7 @@ class DashboardWindow:
         self._on_stop_cb = on_stop
 
     def _poll_queue(self):
-        """Called by QTimer â€” processes engine messages."""
+        """Called by QTimer — processes engine messages."""
         try:
             while True:
                 msg = self.queue.get_nowait()
@@ -210,10 +218,12 @@ class DashboardWindow:
                 self._status_indicator.setStyleSheet("color: #22c55e; font-size: 18px;")
                 self._start_btn.setEnabled(False)
                 self._stop_btn.setEnabled(True)
+                self._login_label.setStyleSheet("color: #22c55e; padding: 2px 6px; font-family: Consolas;")
             elif status == "stopped":
                 self._status_indicator.setStyleSheet("color: gray; font-size: 18px;")
                 self._start_btn.setEnabled(True)
                 self._stop_btn.setEnabled(False)
+                self._login_label.setStyleSheet("color: #888; padding: 2px 6px; font-family: Consolas;")
             else:
                 self._status_indicator.setStyleSheet("color: orange; font-size: 18px;")
 
@@ -230,15 +240,23 @@ class DashboardWindow:
         elif msg == "dashboard:focus":
             self.focus()
 
+        elif msg.startswith("login:"):
+            parts = msg.split(":", 2)
+            if len(parts) >= 3:
+                self._login_server = parts[1]
+                self._login_user = str(parts[2])
+                self._login_label.setText(f"Server: {self._login_server} | User: {self._login_user}")
+                self._login_label.setStyleSheet("color: #22c55e; padding: 2px 6px; font-family: Consolas;")
+
         elif msg.startswith("error:"):
             err = msg.split(":", 1)[1]
-            self._signal_label.setText(f"âš  Error: {err}")
+            self._signal_label.setText(f"⚠ Error: {err}")
             self._signal_label.setStyleSheet(
                 "background: #1a1a2e; color: #ef4444; padding: 6px; border-radius: 4px; font-family: Consolas;"
             )
 
     def focus(self) -> None:
-        """Bring dashboard window to front â€” show if hidden."""
+        """Bring dashboard window to front — show if hidden."""
         if self._window:
             if not self._window.isVisible():
                 self.show()
@@ -257,4 +275,3 @@ class DashboardWindow:
         log.info("Dashboard tidak tersedia (PyQt6 belum diinstall).")
         log.info("Jalankan: pip install PyQt6")
         print("\n[DASHBOARD] PyQt6 not installed. Install with: pip install PyQt6")
-

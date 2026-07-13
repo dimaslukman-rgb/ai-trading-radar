@@ -1,22 +1,17 @@
-﻿# AI Trading Radar â€” Dependencies
-# Install: pip install -r requirements.txt
+# Fully pinned direct dependencies for the complete Windows application.
+# Core CLI, dashboard API, paper broker, and backtests use the standard library.
 
-# Core - no pip dependencies needed for basic functionality
+# Broker connectors
+MetaTrader5==5.0.5735; platform_system == "Windows"
+ccxt==4.5.64
+alpaca-py==0.43.5
 
-# Broker connectors (install as needed)
-MetaTrader5              # MT5 / Finex integration
-ccxt                     # Binance & other crypto exchanges
-alpaca-py                # Alpaca US stocks
+# Desktop application
+PyQt6==6.11.0
+pystray==0.19.5
+Pillow==12.3.0
+win10toast==0.9; platform_system == "Windows"
 
-# Windows application (install as needed)
-PyQt6                    # GUI Dashboard
-pystray                  # System tray icon
-Pillow                   # Icon generation for pystray
-win10toast               # Windows toast notifications
-
-# Telegram notifications
-requests                 # Telegram Bot API
-
-# Build tools (install as needed)
-pyinstaller              # .exe packaging
-
+# Notifications and packaging
+requests==2.34.2
+pyinstaller==6.21.0

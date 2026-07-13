@@ -6,7 +6,7 @@
 <title>AI Trading Radar — Dashboard</title>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{
+:root {
   --bg:#0a0e17;--bg2:#111827;--bg3:#1a2035;--bg4:#222b45;
   --border:#2a3550;--border2:#3a4a6a;
   --text:#e2e8f0;--text2:#94a3b8;--text3:#64748b;
@@ -15,9 +15,58 @@
   --yellow:#ffaa00;--yellow2:#f59e0b;
   --orange:#ff6600;--cyan:#00d4ff;--purple:#a855f7;
   --neon-glow:0 0 20px rgba(0,255,136,0.3);
+  --update-banner-bg: rgba(255, 170, 0, 0.15);
+  --update-banner-border: rgba(255, 170, 0, 0.3);
+  --update-text: #ffaa00;
+  --update-btn-bg: #ffaa00;
+  --update-btn-hover: #f59e0b;
 }
 body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
 .container{max-width:1440px;margin:0 auto;padding:16px}
+
+/* ── Update Banner ──────────────────────────────────────── */
+.update-banner {
+  background: var(--update-banner-bg);
+  border: 1px solid var(--update-banner-border);
+  border-radius: 8px;
+  padding: 10px 16px;
+  margin-bottom: 16px;
+  text-align: center;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+}
+.update-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  justify-content: center;
+}
+.update-text {
+  color: var(--update-text);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.update-progress {
+  color: var(--text2);
+  font-size: 0.8rem;
+}
+.update-btn {
+  background: var(--update-btn-bg);
+  color: #000;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: background 0.2s;
+}
+.update-btn:hover {
+  background: var(--update-btn-hover);
+}
 
 /* ── Header ─────────────────────────────────────────────────── */
 .header{display:flex;align-items:center;justify-content:space-between;padding:16px 24px;background:linear-gradient(135deg,#111827 0%,#1a2035 100%);border:1px solid var(--border);border-radius:12px;margin-bottom:16px}
@@ -131,6 +180,26 @@ body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--
 .news-name{font-size:.8rem;color:var(--text);flex:1}
 .news-countdown{font-family:'Consolas',monospace;font-size:.75rem;color:var(--yellow);min-width:60px;text-align:right}
 .no-news{text-align:center;padding:20px;color:var(--text3);font-size:.8rem}
+.macro-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:12px}
+.macro-bias{font-size:1.15rem;font-weight:800;letter-spacing:1px;text-transform:uppercase}
+.macro-bias.neutral{color:var(--text2)}
+.macro-bias.watch{color:var(--yellow)}
+.macro-bias.volatility{color:var(--orange)}
+.macro-bias.bullish{color:var(--green)}
+.macro-bias.bearish{color:var(--red)}
+.macro-risk{text-align:right;min-width:120px}
+.macro-risk .score{font-family:'Consolas',monospace;font-size:1.25rem;font-weight:800}
+.macro-summary{font-size:.85rem;color:var(--text2);line-height:1.45;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;margin-bottom:12px}
+.macro-drivers{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.macro-driver{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px;min-height:120px}
+.macro-driver.active{border-color:var(--orange);background:rgba(255,102,0,.05)}
+.macro-driver .md-name{font-size:.76rem;font-weight:800;color:var(--text);margin-bottom:6px}
+.macro-driver .md-meta{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:7px}
+.macro-driver .md-pill{font-size:.58rem;font-weight:800;letter-spacing:.5px;text-transform:uppercase;padding:2px 6px;border-radius:4px;background:rgba(100,116,139,.16);color:var(--text2)}
+.macro-driver .md-pill.high{background:rgba(255,102,0,.15);color:var(--orange)}
+.macro-driver .md-pill.active{background:rgba(255,170,0,.16);color:var(--yellow)}
+.macro-driver .md-bias{font-size:.68rem;font-weight:700;color:var(--cyan);margin-bottom:6px}
+.macro-driver .md-note{font-size:.68rem;line-height:1.35;color:var(--text3)}
 
 /* ── Trade History Table ────────────────────────────────────── */
 .table-wrap{overflow-x:auto;background:var(--bg2);border:1px solid var(--border);border-radius:10px}
@@ -174,7 +243,8 @@ tr:hover{background:rgba(0,255,136,.02)}
 
 /* ── Responsive ─────────────────────────────────────────────── */
 @media(max-width:1024px){.grid-2,.grid-3{grid-template-columns:1fr}.grid-4{grid-template-columns:repeat(2,1fr)}.radar-details{grid-template-columns:repeat(3,1fr)}.factor-grid{grid-template-columns:repeat(3,1fr)}}
-@media(max-width:600px){.container{padding:8px}.grid-4{grid-template-columns:1fr 1fr}.radar-details{grid-template-columns:repeat(2,1fr)}.factor-grid{grid-template-columns:1fr 1fr}.header{flex-direction:column;gap:10px;text-align:center}}
+@media(max-width:1024px){.macro-drivers{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:600px){.container{padding:8px}.grid-4{grid-template-columns:1fr 1fr}.radar-details{grid-template-columns:repeat(2,1fr)}.factor-grid{grid-template-columns:1fr 1fr}.macro-drivers{grid-template-columns:1fr}.macro-head{flex-direction:column}.macro-risk{text-align:left}.header{flex-direction:column;gap:10px;text-align:center}}
 
 /* ── Animations ─────────────────────────────────────────────── */
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
@@ -186,27 +256,13 @@ tr:hover{background:rgba(0,255,136,.02)}
 <body>
 <div class="container">
 
-<!-- ═══ UPDATE NOTIFICATION BANNER ═════════════════════════ -->
-<div id="updateBanner" style="display:none;background:linear-gradient(135deg,rgba(0,212,255,.12) 0%,rgba(0,255,136,.12) 100%);border:1px solid var(--cyan);border-radius:10px;padding:12px 20px;margin-bottom:16px;align-items:center;justify-content:space-between;animation:fadeIn .3s ease">
-  <div style="display:flex;align-items:center;gap:12px">
-    <span style="font-size:1.5rem">🔄</span>
-    <div>
-      <div style="font-weight:700;font-size:.9rem" id="updateTitle">Update v2.0.0 Tersedia!</div>
-      <div style="font-size:.75rem;color:var(--text2);margin-top:2px" id="updateDesc">Klik Install untuk memperbarui AI Trading Radar</div>
-      <div style="font-size:.7rem;color:var(--text3);margin-top:2px" id="updateSize"></div>
-    </div>
-  </div>
-  <div style="display:flex;gap:8px;align-items:center">
-    <div id="updateProgressWrap" style="display:none;width:120px">
-      <div style="height:4px;background:var(--bg3);border-radius:2px;overflow:hidden">
-        <div id="updateProgressBar" style="height:100%;width:0%;background:var(--cyan);border-radius:2px;transition:width .3s"></div>
-      </div>
-      <div style="font-size:.65rem;color:var(--text3);text-align:center;margin-top:2px" id="updateProgressText">0%</div>
-    </div>
-    <button id="updateInstallBtn" onclick="doUpdateInstall()" style="padding:8px 20px;background:var(--cyan);color:#000;border:none;border-radius:6px;font-weight:700;font-size:.8rem;cursor:pointer;display:none">⬇ INSTALL</button>
-    <button id="updateDownloadBtn" onclick="doUpdateDownload()" style="padding:8px 20px;background:var(--green);color:#000;border:none;border-radius:6px;font-weight:700;font-size:.8rem;cursor:pointer">📥 DOWNLOAD</button>
-    <button id="updateLaterBtn" onclick="dismissUpdate()" style="padding:8px 14px;background:transparent;color:var(--text3);border:1px solid var(--border);border-radius:6px;font-size:.8rem;cursor:pointer">Nanti</button>
-    <span id="updateCheckSpinner" style="display:none;font-size:.8rem;color:var(--text3)">⏳ Memeriksa...</span>
+<!-- Update Banner -->
+<div id="updateBanner" class="update-banner" style="display: none;">
+  <div class="update-content">
+    <span class="update-text">Update v<span id="updateVersion"></span> available!</span>
+    <span class="update-progress" id="updateProgress">0%</span>
+    <button id="updateDownloadBtn" class="update-btn">Download</button>
+    <button id="updateInstallBtn" class="update-btn" style="display: none;">Install</button>
   </div>
 </div>
 
@@ -216,27 +272,34 @@ tr:hover{background:rgba(0,255,136,.02)}
     <div class="radar-icon">📡</div>
     <h1>AI TRADING RADAR<small>Professional Multi-Factor Analysis Engine</small></h1>
   </div>
-  <div class="header-right">
-    <div style="text-align:right;margin-right:12px">
-      <div class="label" style="font-size:.65rem;margin-bottom:1px">TOTAL EQUITY</div>
-      <div class="value green" id="headerEquity" style="font-size:1.1rem">$0.00</div>
+    <div class="header-right">
+      <div style="text-align:right;margin-right:12px">
+        <div class="label" style="font-size:.65rem;margin-bottom:1px">TOTAL EQUITY</div>
+        <div class="value green" id="headerEquity" style="font-size:1.1rem">$0.00</div>
+      </div>
+      <div style="text-align:right;margin-right:12px">
+        <div class="label" style="font-size:.65rem;margin-bottom:1px">BALANCE</div>
+        <div class="value cyan" id="headerBalance" style="font-size:1.1rem">$0.00</div>
+      </div>
+      <div style="text-align:right;margin-right:12px">
+        <div class="label" style="font-size:.65rem;margin-bottom:1px">% P/L</div>
+        <div class="value green" id="headerPL" style="font-size:1.1rem">+0.00%</div>
+      </div>
+      <div style="text-align:right;margin-right:12px">
+        <div class="label" style="font-size:.65rem;margin-bottom:1px">DRAWDOWN</div>
+        <div class="value green" id="headerDD" style="font-size:1.1rem">0.00%</div>
+      </div>
+      <div style="margin-right:8px;text-align:right">
+        <div class="label" style="font-size:.6rem;margin-bottom:1px;color:var(--text3)">MT5 ACCOUNT</div>
+        <div class="value" id="mt5AccountDisplay" style="font-size:.85rem;color:var(--cyan)">—</div>
+        <div class="label" style="font-size:.6rem;margin-top:2px;color:var(--text3)">SERVER</div>
+        <div class="value" id="mt5ServerDisplay" style="font-size:.85rem;color:var(--yellow)">—</div>
+      </div>
+      <span id="mt5StatusBadge" style="padding:4px 10px;border-radius:20px;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;background:rgba(100,116,139,.15);color:var(--text3);border:1px solid rgba(100,116,139,.3)">DISCONNECTED</span>
+      <span id="modeBadge" style="padding:4px 10px;border-radius:20px;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;background:rgba(255,68,68,.15);color:var(--red);border:1px solid rgba(255,68,68,.3);display:none">⚡AGGRESSIVE</span>
+      <span class="status-badge" id="statusBadge">STOPPED</span>
+      <span class="clock" id="clock">--:--:--</span>
     </div>
-    <div style="text-align:right;margin-right:12px">
-      <div class="label" style="font-size:.65rem;margin-bottom:1px">BALANCE</div>
-      <div class="value cyan" id="headerBalance" style="font-size:1.1rem">$0.00</div>
-    </div>
-    <div style="text-align:right;margin-right:12px">
-      <div class="label" style="font-size:.65rem;margin-bottom:1px">% P/L</div>
-      <div class="value green" id="headerPL" style="font-size:1.1rem">+0.00%</div>
-    </div>
-    <div style="text-align:right;margin-right:12px">
-      <div class="label" style="font-size:.65rem;margin-bottom:1px">DRAWDOWN</div>
-      <div class="value green" id="headerDD" style="font-size:1.1rem">0.00%</div>
-    </div>
-    <span id="modeBadge" style="padding:4px 10px;border-radius:20px;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;background:rgba(255,68,68,.15);color:var(--red);border:1px solid rgba(255,68,68,.3);display:none">⚡AGGRESSIVE</span>
-    <span class="status-badge" id="statusBadge">STOPPED</span>
-    <span class="clock" id="clock">--:--:--</span>
-  </div>
 </div>
 
 <!-- ═══ XAUUSD REAL-TIME CHART ═══════════════════════════════ -->
@@ -334,6 +397,23 @@ tr:hover{background:rgba(0,255,136,.02)}
 </div>
 
 <!-- ═══ SENTIMENT + VOLATILITY + RISK ═══════════════════════ -->
+<div class="section-title"><span class="dot"></span> MACRO SENTIMENT</div>
+<div class="card" style="margin-bottom:16px">
+  <div class="macro-head">
+    <div>
+      <div class="label">XAUUSD NEWS BIAS</div>
+      <div class="macro-bias neutral" id="macroBias">NEUTRAL</div>
+    </div>
+    <div class="macro-risk">
+      <div class="label">MACRO RISK</div>
+      <div class="score" id="macroRiskScore" style="color:var(--yellow)">25%</div>
+      <div style="font-size:.68rem;color:var(--text3)" id="macroUpdated">--:--:--</div>
+    </div>
+  </div>
+  <div class="macro-summary" id="macroSummary">Waiting for macro catalyst scan...</div>
+  <div class="macro-drivers" id="macroDrivers"></div>
+</div>
+
 <div class="grid-3">
   <!-- Market Sentiment -->
   <div class="card">
@@ -392,6 +472,18 @@ tr:hover{background:rgba(0,255,136,.02)}
 </div>
 
 <!-- ═══ CONFIRMED SIGNALS ═══════════════════════════════════ -->
+<div class="section-title"><span class="dot"></span> OPEN POSITIONS</div>
+<div class="table-wrap" style="margin-bottom:16px">
+  <table>
+    <thead><tr>
+      <th>Ticket</th><th>Pair</th><th>Side</th><th>State</th><th>Qty</th><th>Entry</th><th>Current</th><th>Pips</th><th>P&L</th>
+    </tr></thead>
+    <tbody id="positionsBody">
+      <tr><td colspan="9" class="empty-state">No open positions</td></tr>
+    </tbody>
+  </table>
+</div>
+
 <div class="section-title"><span class="dot"></span> CONFIRMED SIGNALS</div>
 <div class="table-wrap" style="margin-bottom:16px">
   <table>
@@ -412,108 +504,82 @@ tr:hover{background:rgba(0,255,136,.02)}
 
 </div><!-- /container -->
 
+<!-- MT5 Account Management Modal -->
+<div id="mt5Modal" class="modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.8);z-index:1000;justify-content:center;align-items:center">
+  <div class="modal-content" style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:24px;width:400px;max-width:90%;position:relative">
+    <span id="closeModal" style="position:absolute;top:12px;right:16px;font-size:1.5rem;cursor:pointer;color:var(--text3)">&times;</span>
+
+    <h2 style="margin-bottom:20px;color:var(--text);text-align:center">MT5 Account Management</h2>
+
+    <div id="mt5LoginSection">
+      <div class="label" style="margin-bottom:8px">Server</div>
+      <input type="text" id="mt5Server" placeholder="e.g. Finex-Demo" style="width:100%;padding:10px;margin-bottom:12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text)">
+
+      <div class="label" style="margin-bottom:8px">Login</div>
+      <input type="text" id="mt5Login" placeholder="Account number" style="width:100%;padding:10px;margin-bottom:12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text)">
+
+      <div class="label" style="margin-bottom:8px">Password</div>
+      <input type="password" id="mt5Password" placeholder="Password" style="width:100%;padding:10px;margin-bottom:16px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text)">
+
+      <button id="mt5LoginBtn" style="width:100%;padding:12px;background:var(--green);color:#000;border:none;border-radius:6px;font-weight:700;cursor:pointer;margin-bottom:8px">LOGIN</button>
+
+      <div style="text-align:center;margin-bottom:16px">
+        <a href="#" id="forgotPasswordLink" style="color:var(--cyan);text-decoration:none;font-size:.8rem">Forgot password?</a>
+      </div>
+    </div>
+
+    <div id="mt5ForgotPasswordSection" style="display:none">
+      <div class="label" style="margin-bottom:8px">Registered Email</div>
+      <input type="email" id="mt5Email" placeholder="your@email.com" style="width:100%;padding:10px;margin-bottom:12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text)">
+
+      <div class="label" style="margin-bottom:8px">Account Login</div>
+      <input type="text" id="mt5ForgotLogin" placeholder="Account number" style="width:100%;padding:10px;margin-bottom:16px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text)">
+
+      <button id="mt5ResetBtn" style="width:100%;padding:12px;background:var(--yellow);color:#000;border:none;border-radius:6px;font-weight:700;cursor:pointer;margin-bottom:8px">SEND RESET LINK</button>
+
+      <div style="text-align:center">
+        <a href="#" id="backToLoginLink" style="color:var(--cyan);text-decoration:none;font-size:.8rem">Back to login</a>
+      </div>
+    </div>
+
+    <div id="mt5AccountInfo" style="display:none;margin-top:16px;padding:12px;background:var(--bg);border-radius:6px;border:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+        <span class="label">Account:</span>
+        <span id="mt5AccountNumber" style="color:var(--cyan)">-</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+        <span class="label">Server:</span>
+        <span id="mt5AccountServer" style="color:var(--text2)">-</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+        <span class="label">Balance:</span>
+        <span id="mt5AccountBalance" style="color:var(--green)">$0.00</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+        <span class="label">Equity:</span>
+        <span id="mt5AccountEquity" style="color:var(--green)">$0.00</span>
+      </div>
+      <div style="display:flex;justify-content:space-between">
+        <span class="label">Leverage:</span>
+        <span id="mt5AccountLeverage" style="color:var(--text2)">1:100</span>
+      </div>
+      <button id="mt5LogoutBtn" style="width:100%;padding:10px;background:var(--red);color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;margin-top:16px">LOGOUT</button>
+    </div>
+
+    <div id="mt5Error" style="display:none;margin-top:16px;padding:10px;background:rgba(255,68,68,.15);border-radius:6px;border:1px solid rgba(255,68,68,.3);color:var(--red);font-size:.8rem"></div>
+    <div id="mt5Success" style="display:none;margin-top:16px;padding:10px;background:rgba(0,255,136,.15);border-radius:6px;border:1px solid rgba(0,255,136,.3);color:var(--green);font-size:.8rem"></div>
+  </div>
+</div>
+
+<!-- MT5 Account Button -->
+<div style="position:fixed;bottom:20px;right:20px;z-index:100">
+  <button id="mt5AccountBtn" style="background:var(--bg2);border:1px solid var(--border);border-radius:50%;width:50px;height:50px;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.3)">
+    <span style="font-size:1.5rem">👤</span>
+  </button>
+</div>
+
 <script src="https://s3.tradingview.com/tv.js"></script>
 <script>
-// ── Auto-Update System ──────────────────────────────────────
-let updateState = {};
-
-function showUpdateBanner(state) {
-  const banner = $('updateBanner');
-  if (!state.update_available) {
-    banner.style.display = 'none';
-    return;
-  }
-  updateState = state;
-  banner.style.display = 'flex';
-  $('updateTitle').textContent = `🔄 Update v${state.latest_version} Tersedia!`;
-  $('updateDesc').textContent = `v${state.current_version} → v${state.latest_version} — Klik Download untuk memperbarui`;
-  if (state.asset_size > 0) {
-    const mb = (state.asset_size / 1024 / 1024).toFixed(1);
-    $('updateSize').textContent = `${state.asset_name} (${mb} MB)`;
-  }
-  // Show download or install button based on state
-  if (state.download_complete && state.download_path) {
-    $('updateDownloadBtn').style.display = 'none';
-    $('updateInstallBtn').style.display = 'inline-block';
-    $('updateProgressWrap').style.display = 'none';
-  } else if (state.downloading) {
-    $('updateDownloadBtn').style.display = 'none';
-    $('updateInstallBtn').style.display = 'none';
-    $('updateProgressWrap').style.display = 'block';
-  } else {
-    $('updateDownloadBtn').style.display = 'inline-block';
-    $('updateInstallBtn').style.display = 'none';
-    $('updateProgressWrap').style.display = 'none';
-  }
-}
-
-function updateProgressUI(state) {
-  if (state.downloading && state.download_progress > 0) {
-    const pct = Math.min(100, Math.round(state.download_progress));
-    $('updateProgressBar').style.width = pct + '%';
-    $('updateProgressText').textContent = pct + '%';
-  }
-  if (state.download_complete && state.download_path) {
-    $('updateDownloadBtn').style.display = 'none';
-    $('updateInstallBtn').style.display = 'inline-block';
-    $('updateProgressWrap').style.display = 'none';
-  }
-}
-
-function dismissUpdate() {
-  $('updateBanner').style.display = 'none';
-}
-
-async function doUpdateDownload() {
-  $('updateCheckSpinner').style.display = 'inline';
-  $('updateDownloadBtn').disabled = true;
-  try {
-    const resp = await fetch('/api/update/download', { method: 'POST' });
-    const data = await resp.json();
-    if (data.success) {
-      $('updateDownloadBtn').style.display = 'none';
-      $('updateProgressWrap').style.display = 'block';
-      $('updateProgressText').textContent = 'Memulai...';
-    } else {
-      alert('Download gagal: ' + (data.error || 'unknown'));
-    }
-  } catch (e) {
-    alert('Download error: ' + e.message);
-  } finally {
-    $('updateCheckSpinner').style.display = 'none';
-    $('updateDownloadBtn').disabled = false;
-  }
-}
-
-async function doUpdateInstall() {
-  if (!confirm('Instal update sekarang? Aplikasi akan menutup dan installer akan terbuka.')) return;
-  try {
-    const resp = await fetch('/api/update/apply', { method: 'POST' });
-    const data = await resp.json();
-    if (data.success) {
-      $('updateInstallBtn').textContent = '✅ INSTALLER DIBUKA';
-      $('updateInstallBtn').disabled = true;
-    } else {
-      alert('Gagal membuka installer: ' + (data.error || 'unknown'));
-    }
-  } catch (e) {
-    alert('Install error: ' + e.message);
-  }
-}
-
-// Check for updates on startup
-async function checkUpdateOnStartup() {
-  try {
-    const resp = await fetch('/api/update/status');
-    const state = await resp.json();
-    if (state.update_available) {
-      showUpdateBanner(state);
-    }
-  } catch (e) { /* silent */ }
-}
-// Run check after initial load
-setTimeout(checkUpdateOnStartup, 3000);
-
 // ── TradingView XAUUSD Widget ────────────────────────────
 function initTradingView() {
   if (typeof TradingView === 'undefined') {
@@ -623,14 +689,6 @@ function buildExplanation(analysis, action, conf) {
 function updateUI(data) {
   if (!data) return;
 
-  // ── Update banner (from update SSE data) ──────────────────
-  if (data.update) {
-    if (data.update.update_available) {
-      showUpdateBanner(data.update);
-      updateProgressUI(data.update);
-    }
-  }
-
   // Equity & Balance header
   if (data.equity != null) {
     $('headerEquity').textContent = '$' + Number(data.equity).toFixed(2);
@@ -679,11 +737,28 @@ function updateUI(data) {
     timeoutEl.style.display = 'none';
   }
 
+  // MT5 Account and Server display
+  const mt5Account = data.mt5_login || '—';
+  const mt5Server = data.mt5_server || '—';
+  $('mt5AccountDisplay').textContent = mt5Account;
+  $('mt5ServerDisplay').textContent = mt5Server;
+
   // Status badge
   const s = data.status || 'stopped';
   const badge = $('statusBadge');
   badge.textContent = s.toUpperCase();
   badge.className = 'status-badge ' + s;
+
+  // MT5 Connection status
+  const mt5Connected = data.mt5_connected || false;
+  const mt5StatusBadge = $('mt5StatusBadge');
+  if (mt5Connected) {
+    mt5StatusBadge.textContent = 'CONNECTED';
+    mt5StatusBadge.className = 'status-badge running';
+  } else {
+    mt5StatusBadge.textContent = 'DISCONNECTED';
+    mt5StatusBadge.className = 'status-badge stopped';
+  }
 
   // Radar card
   const pair = data.symbol || 'XAUUSD';
@@ -748,6 +823,43 @@ function updateUI(data) {
   });
   $('activeSession').textContent = data.current_session || '—';
 
+  // Macro sentiment
+  const macro = data.macro_sentiment || {};
+  const macroBias = macro.bias || 'NEUTRAL';
+  const macroRisk = Number(macro.risk_score || 0);
+  const macroBiasEl = $('macroBias');
+  macroBiasEl.textContent = macroBias;
+  const mb = macroBias.toLowerCase();
+  macroBiasEl.className = 'macro-bias ' + (
+    mb.includes('bull') ? 'bullish' :
+    mb.includes('bear') ? 'bearish' :
+    mb.includes('volatility') ? 'volatility' :
+    mb.includes('watch') || mb.includes('risk') ? 'watch' : 'neutral'
+  );
+  $('macroRiskScore').textContent = macroRisk + '%';
+  $('macroRiskScore').style.color = macroRisk >= 80 ? 'var(--red)' : macroRisk >= 60 ? 'var(--orange)' : macroRisk >= 40 ? 'var(--yellow)' : 'var(--green)';
+  $('macroSummary').textContent = macro.summary || 'Waiting for macro catalyst scan...';
+  $('macroUpdated').textContent = macro.updated_at ? 'Updated ' + macro.updated_at : '--:--:--';
+  const drivers = macro.drivers || [];
+  const driversEl = $('macroDrivers');
+  if (drivers.length > 0) {
+    driversEl.innerHTML = drivers.map(d => {
+      const active = (d.status || '').includes('ACTIVE');
+      const impactClass = (d.impact || '').toLowerCase();
+      return `<div class="macro-driver ${active ? 'active' : ''}">
+        <div class="md-name">${d.name || '--'}</div>
+        <div class="md-meta">
+          <span class="md-pill ${active ? 'active' : ''}">${d.status || 'MONITOR'}</span>
+          <span class="md-pill ${impactClass}">${d.impact || 'MEDIUM'}</span>
+        </div>
+        <div class="md-bias">${d.bias || 'Neutral'}</div>
+        <div class="md-note">${d.note || ''}</div>
+      </div>`;
+    }).join('');
+  } else {
+    driversEl.innerHTML = '<div class="no-news">No macro drivers available</div>';
+  }
+
   // Sentiment
   const senti = data.sentiment || {bullish:0,bearish:0,neutral:100};
   const b = senti.bullish || 0, be = senti.bearish || 0, n = senti.neutral || 100;
@@ -785,10 +897,36 @@ function updateUI(data) {
         <span class="news-time">${timeStr}</span>
         <span class="news-impact ${impClass}">${n.impact || 'LOW'}</span>
         <span class="news-currency">${n.currency || '--'}</span>
-        <span class="news-name">${n.name || '--'}</span>
+        <span class="news-name">${n.name || '--'} <span style="color:var(--text3)">- ${n.category || 'Macro'} / ${n.bias || 'WATCH'}</span></span>
         <span class="news-countdown">${countdown}</span>
       </div>`;
     }).join('');
+  }
+
+  // Open positions
+  const openPositions = data.open_positions || [];
+  const posBody = $('positionsBody');
+  if (openPositions.length > 0) {
+    posBody.innerHTML = openPositions.map(p => {
+      const side = (p.side || 'LONG').toUpperCase();
+      const cls = side === 'SHORT' || side === 'SELL' ? 'sell' : 'buy';
+      const phase = (p.phase || 'open').toUpperCase();
+      const pnl = Number(p.pnl || 0);
+      const pips = Number(p.pnl_pips || 0);
+      return `<tr>
+        <td style="color:var(--text3)">${p.ticket || '--'}</td>
+        <td style="color:var(--cyan)">${p.symbol || '--'}</td>
+        <td><span class="tag ${cls}">${side}</span></td>
+        <td style="color:var(--text3)">${phase}</td>
+        <td>${p.qty != null ? Number(p.qty).toFixed(2) : '--'}</td>
+        <td>$${p.entry != null ? Number(p.entry).toFixed(2) : '--'}</td>
+        <td>$${p.current != null ? Number(p.current).toFixed(2) : '--'}</td>
+        <td style="color:${pips >= 0 ? 'var(--green)' : 'var(--red)'}">${pips >= 0 ? '+' : ''}${pips.toFixed(1)}</td>
+        <td style="color:${pnl >= 0 ? 'var(--green)' : 'var(--red)'}">${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}</td>
+      </tr>`;
+    }).join('');
+  } else {
+    posBody.innerHTML = '<tr><td colspan="9" class="empty-state">No open positions</td></tr>';
   }
 
   // Trades
@@ -801,9 +939,7 @@ function updateUI(data) {
       const pnlStr = t.pnl != null
         ? `<span style="color:${t.pnl >= 0 ? 'var(--green)' : 'var(--red)'}">${t.pnl >= 0 ? '+' : ''}$${t.pnl.toFixed(2)}</span>`
         : '<span style="color:var(--text3)">--</span>';
-      const status = t.status || (act.includes('BUY') ? 'OPEN' : 'CLOSED');
-      const statusClass = status === 'REJECTED' ? 'sell' : status === 'OPEN' ? 'confirmed' : 'sell';
-      const statusTag = `<span class="tag ${statusClass}">${status}</span>`;
+      const statusTag = act.includes('BUY') ? '<span class="tag confirmed">OPEN</span>' : '<span class="tag sell">CLOSED</span>';
       return `<tr>
         <td style="color:var(--text3)">${(t.time || '').slice(0,10) || '--'}</td>
         <td>${t.time || '--'}</td>
@@ -839,6 +975,31 @@ function updateUI(data) {
   }
 }
 
+// ── Update Banner Logic ────────────────────────────────────
+function handleUpdate(data) {
+  if (data.update && data.update.update_available) {
+    const banner = $('updateBanner');
+    const version = $('updateVersion');
+    const progress = $('updateProgress');
+    const downloadBtn = $('updateDownloadBtn');
+    const installBtn = $('updateInstallBtn');
+
+    if (banner) {
+      banner.style.display = 'block';
+      version.textContent = data.update.latest_version;
+      progress.textContent = `${data.update.download_progress}%`;
+
+      if (data.update.download_complete) {
+        downloadBtn.style.display = 'none';
+        installBtn.style.display = 'block';
+      } else {
+        downloadBtn.style.display = 'block';
+        installBtn.style.display = 'none';
+      }
+    }
+  }
+}
+
 // ── SSE real-time updates ────────────────────────────────────
 function connectSSE() {
   const evtSource = new EventSource('/api/events');
@@ -846,16 +1007,41 @@ function connectSSE() {
     try { const d = JSON.parse(e.data); updateUI(d); if (d.logs) logCount = d.logs.length; } catch(ex){}
   });
   evtSource.addEventListener('update', e => {
-    try { updateUI(JSON.parse(e.data)); } catch(ex){}
+    try {
+      const data = JSON.parse(e.data);
+      updateUI(data);
+      handleUpdate(data);
+    } catch(ex){}
   });
   evtSource.onerror = () => { evtSource.close(); setTimeout(connectSSE, 2000); };
 }
 connectSSE();
 
+// Event Listeners for Update Buttons
+$('updateDownloadBtn')?.addEventListener('click', () => {
+  fetch('/api/download-update', { method: 'POST' })
+    .then(r => r.json())
+    .then(d => {
+      if (d.success) {
+        console.log('Download started');
+      }
+    });
+});
+
+$('updateInstallBtn')?.addEventListener('click', () => {
+  fetch('/api/apply-update', { method: 'POST' })
+    .then(r => r.json())
+    .then(d => {
+      if (d.success) {
+        console.log('Installer launched');
+      }
+    });
+});
+
 // ── Polling fallback ─────────────────────────────────────────
 setInterval(() => {
   fetch('/api/status').then(r => r.json()).then(updateUI).catch(() => {});
-}, 3000);
+}, 10000);
 
 // ── Initial load ─────────────────────────────────────────────
 fetch('/api/status').then(r => r.json()).then(d => { updateUI(d); if (d.logs) logCount = d.logs.length; }).catch(() => {});

@@ -1,4 +1,4 @@
-﻿"""Telegram notifier â€” sends trading signals to your phone via Telegram Bot API.
+"""Telegram notifier — sends trading signals to your phone via Telegram Bot API.
 
 Setup:
   1. Open Telegram, search @BotFather, send /newbot
@@ -87,7 +87,7 @@ class TelegramNotifier:
     def send_startup(self, symbol: str, broker: str, equity: float) -> None:
         """Send a startup notification."""
         self.send(
-            f"[START] AI Trading Radar\n"
+            f"[START] AI Trading Bot\n"
             f"Symbol: {symbol}\n"
             f"Broker: {broker}\n"
             f"Equity: ${equity:.2f}"
@@ -96,4 +96,3 @@ class TelegramNotifier:
     def send_shutdown(self, reason: str = "user stopped") -> None:
         """Send a shutdown notification."""
         self.send(f"[STOP] Bot stopped ({reason})")
-
