@@ -1,0 +1,51 @@
+{
+  "agent_id": "login_dialog_agent",
+  "role": "Login Dialog — Credential Collector",
+  "version": "1.0.0",
+  "description": "Menampilkan popup login MT5 sebelum bot berjalan. Meminta server, login, dan password. Output digunakan oleh TradingEngine untuk override kredensial di config.",
+
+  "component_type": "UI",
+  "framework": "PyQt6 QDialog (dengan fallback console via input())",
+
+  "trigger": "Saat bot dijalankan (sebelum TradingEngine dibuat)",
+  "skip_flag": "--skip-login (gunakan kredensial dari config file langsung)",
+
+  "inputs": [
+    "Server (QLineEdit, placeholder: FinexAsia-Demo)",
+    "Login (QLineEdit, placeholder: MT5 login ID)",
+    "Password (QLineEdit, echo mode: Password)"
+  ],
+
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "server": { "type": "string", "description": "Nama server MT5" },
+      "login": { "type": "string", "description": "MT5 login ID (string, dikonversi ke int di engine)" },
+      "password": { "type": "string", "description": "Password MT5" },
+      "confirmed": { "type": "boolean", "description": "true jika user klik Connect, false jika Cancel" }
+    },
+    "required": ["server", "login", "password", "confirmed"]
+  },
+
+  "behavior": {
+    "gui_mode": "Popup QDialog modal — user wajib isi server, login, password lalu klik Connect",
+    "console_mode": "Input via stdin (saat --no-gui --no-tray)",
+    "skip_mode": "Lewati dialog, pakai kredensial dari config file (saat --skip-login)",
+    "cancel": "Jika user cancel / tutup dialog, bot tidak jalan dan program exit"
+  },
+
+  "integration": {
+    "file_login_dialog": "aitrader_bot/app/login_dialog.py",
+    "file_run_scalping": "run_scalping.py (line 54-77)",
+    "file_engine": "aitrader_bot/app/engine.py (line 79, 135-161)",
+    "engine_override": "Credentials dari dialog override broker_cfg.server, broker_cfg.login, broker_cfg.password"
+  },
+
+  "rules": [
+    "Muncul sebelum engine start, sebelum web dashboard, sebelum GUI dashboard",
+    "Cancel = bot tidak jalan sama sekali",
+    "Password field menggunakan echo mode (hidden)",
+    "Di CLI mode (--no-gui --no-tray) fallback ke input() biasa",
+    "--skip-login untuk bypass (berguna untuk auto-start / background mode)"
+  ]
+}

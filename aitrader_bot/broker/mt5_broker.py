@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 
 from .base import (
     AccountInfo,
@@ -60,10 +61,21 @@ class Mt5Broker(BaseBroker):
         "XAUUSD": "XAUUSD",
     }
 
-    def __init__(self, server: str = "", login: int | None = None, password: str = ""):
+    def __init__(
+        self,
+        server: str = "",
+        login: int | None = None,
+        password: str = "",
+        terminal_path: str = "",
+        timeout_ms: int = 60_000,
+        portable: bool = False,
+    ):
         self._server = server
         self._login = login
         self._password = password
+        self._terminal_path = terminal_path
+        self._timeout_ms = timeout_ms
+        self._portable = portable
         self._connected = False
         self._mt5 = None
 
@@ -107,20 +119,59 @@ class Mt5Broker(BaseBroker):
                 "MetaTrader5 tidak terinstall. Jalankan: pip install MetaTrader5"
             )
 
-        if not self._mt5.initialize():
+        init_kwargs = {
+            "timeout": max(1_000, int(self._timeout_ms)),
+            "portable": bool(self._portable),
+        }
+        if self._login is not None:
+            init_kwargs["login"] = int(self._login)
+            init_kwargs["password"] = self._password
+            if self._server:
+                init_kwargs["server"] = self._server
+
+        terminal_path = self._resolved_terminal_path()
+        initialized = (
+            self._mt5.initialize(str(terminal_path), **init_kwargs)
+            if terminal_path is not None
+            else self._mt5.initialize(**init_kwargs)
+        )
+        if not initialized:
             err = self._mt5.last_error()
             raise ConnectionError(f"MT5 initialize gagal: {err}")
 
-        if self._login is not None:
-            authorized = self._mt5.login(
-                self._login, password=self._password, server=self._server,
+        account = self._mt5.account_info()
+        if account is None:
+            err = self._mt5.last_error()
+            self._mt5.shutdown()
+            raise PermissionError(f"MT5 account tidak tersedia setelah login: {err}")
+        if self._login is not None and int(getattr(account, "login", 0) or 0) != int(self._login):
+            active_login = getattr(account, "login", None)
+            self._mt5.shutdown()
+            raise PermissionError(
+                f"MT5 membuka akun {active_login}, bukan akun config {self._login}"
             )
-            if not authorized:
-                err = self._mt5.last_error()
-                raise PermissionError(f"MT5 login gagal: {err}")
+        active_server = str(getattr(account, "server", "") or "")
+        if self._server and active_server and active_server.casefold() != self._server.casefold():
+            self._mt5.shutdown()
+            raise PermissionError(
+                f"MT5 terhubung ke server {active_server}, bukan server config {self._server}"
+            )
 
         self._connected = True
         return True
+
+    def _resolved_terminal_path(self) -> Path | None:
+        """Resolve an explicit terminal path and fail clearly when it is invalid.
+
+        Without an explicit path the official MT5 package discovers and starts
+        the registered terminal automatically.
+        """
+        if not self._terminal_path:
+            return None
+        path = Path(self._terminal_path).expanduser()
+        if not path.is_file():
+            raise FileNotFoundError(f"MT5 terminal tidak ditemukan: {path}")
+        return path.resolve()
 
     def disconnect(self) -> None:
         """Disconnect from MT5 terminal."""
@@ -137,6 +188,7 @@ class Mt5Broker(BaseBroker):
             "connected": self.is_connected,
             "login": self._login,
             "server": self._server,
+            "trade_allowed": None,
             "last_error": ""
         }
 
@@ -144,6 +196,19 @@ class Mt5Broker(BaseBroker):
             return status
 
         try:
+            # The terminal may already be authenticated even when credentials
+            # were not supplied in the JSON config.  Prefer the terminal's
+            # active account/server for dashboard display in that case.
+            terminal_info = self._mt5.terminal_info()
+            if terminal_info is not None:
+                status["trade_allowed"] = bool(getattr(terminal_info, "trade_allowed", True))
+                if status["trade_allowed"] is False:
+                    status["last_error"] = "MT5 AutoTrading is disabled in the terminal"
+            raw_account = self._mt5.account_info()
+            if raw_account is not None:
+                status["login"] = getattr(raw_account, "login", None) or status["login"]
+                status["server"] = getattr(raw_account, "server", "") or status["server"]
+
             account_info = self.get_account()
             status["account_info"] = {
                 "balance": account_info.balance,
@@ -422,6 +487,8 @@ class Mt5Broker(BaseBroker):
         if check is None or check.retcode != 0:
             code = getattr(check, "retcode", "none")
             comment = getattr(check, "comment", self._mt5.last_error())
+            if code == getattr(self._mt5, "TRADE_RETCODE_CLIENT_DISABLES_AT", 10027):
+                comment = "MT5 AutoTrading disabled in terminal"
             return OrderResult(
                 ExchangeType.MT5, "", OrderStatus.REJECTED,
                 mapped, side, quantity, 0.0, 0.0, 0.0,

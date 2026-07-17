@@ -54,10 +54,12 @@
     },
     "mt5": {
       "backend": "mt5",
-      "server": "FinexAsia-Demo",
+      "server": "FinexBisnisSolusi-Demo",
       "login": null,
       "password": "",
-      "symbol_map": null
+      "symbol_map": null,
+      "terminal_path": "C:\\Program Files\\MetaTrader 5\\terminal64.exe",
+      "timeout_ms": 60000
     },
     "binance": {
       "backend": "binance",

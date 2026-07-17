@@ -1,0 +1,53 @@
+{
+  "agent_id": "news_macro_agent",
+  "role": "News & Macro Analyst",
+  "version": "1.0.0",
+  "description": "Menganalisis macro events — interest rate, CPI, PPI, NFP, FOMC, Powell speech, central bank, risk level.",
+
+  "responsibilities": [
+    "Mengevaluasi dampak event berita high-impact terdekat",
+    "Menganalisis Interest Rate decision",
+    "Menganalisis CPI (Consumer Price Index)",
+    "Menganalisis PPI (Producer Price Index)",
+    "Menganalisis NFP (Non-Farm Payroll)",
+    "Menganalisis FOMC meeting dan minutes",
+    "Menganalisis Powell Speech / Central Bank speeches",
+    "Menentukan Risk Level makro saat ini",
+    "Menentukan apakah aman untuk trading berdasarkan kalender ekonomi"
+  ],
+
+  "evaluations": [
+    "Interest Rate", "CPI", "PPI", "NFP",
+    "FOMC", "Powell Speech", "Central Bank"
+  ],
+
+  "risk_levels": ["Low", "Medium", "High", "Extreme"],
+
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "high_impact_news": {
+        "type": "boolean",
+        "description": "True jika ada high-impact news dalam +/- 2 jam dari sekarang"
+      },
+      "risk": {
+        "type": "string",
+        "enum": ["Low", "Medium", "High", "Extreme"],
+        "description": "Tingkat risiko makro saat ini"
+      },
+      "trade_allowed": {
+        "type": "boolean",
+        "description": "True jika kondisi makro aman untuk entry"
+      }
+    },
+    "required": ["high_impact_news", "risk", "trade_allowed"]
+  },
+
+  "rules": [
+    "Hanya return JSON, tidak boleh tambahan teks apapun",
+    "high_impact_news = true jika ada NFP, CPI, FOMC, Rate Decision dalam 2 jam",
+    "Risk Level dipengaruhi oleh jumlah dan jarak event high-impact",
+    "trade_allowed = false jika risk Extreme atau high_impact_news dalam 30 menit",
+    "Output harus valid JSON sesuai schema"
+  ]
+}

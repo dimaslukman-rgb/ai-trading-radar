@@ -1,0 +1,64 @@
+{
+  "agent_id": "trend_analyst_agent",
+  "role": "Trend Analyst",
+  "version": "1.0.0",
+  "description": "Menganalisis trend ONLY. Tidak memproses entry. Tidak memproses indicators.",
+
+  "responsibilities": [
+    "Menentukan trend alignment di semua timeframe",
+    "Tidak melihat entry signal",
+    "Tidak menggunakan indicators"
+  ],
+
+  "timeframes": ["Weekly", "Daily", "H4", "H1", "M15"],
+
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "weekly": {
+        "type": "string",
+        "enum": ["Bullish", "Bearish", "Neutral"],
+        "description": "Trend arah Weekly"
+      },
+      "daily": {
+        "type": "string",
+        "enum": ["Bullish", "Bearish", "Neutral"],
+        "description": "Trend arah Daily"
+      },
+      "h4": {
+        "type": "string",
+        "enum": ["Bullish", "Bearish", "Neutral"],
+        "description": "Trend arah H4"
+      },
+      "h1": {
+        "type": "string",
+        "enum": ["Bullish", "Bearish", "Neutral"],
+        "description": "Trend arah H1"
+      },
+      "m15": {
+        "type": "string",
+        "enum": ["Bullish", "Bearish", "Neutral"],
+        "description": "Trend arah M15"
+      },
+      "alignment": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 100,
+        "description": "Persentase keselarasan trend antar timeframe"
+      },
+      "overall": {
+        "type": "string",
+        "enum": ["Bullish", "Bearish", "Neutral", "Mixed"],
+        "description": "Kesimpulan trend overall"
+      }
+    },
+    "required": ["weekly", "daily", "h4", "h1", "m15", "alignment", "overall"]
+  },
+
+  "rules": [
+    "Hanya return JSON, tidak boleh tambahan teks apapun",
+    "Tidak memproses entry signal atau indikator",
+    "Analisis murni berdasarkan struktur harga (price action)",
+    "Output harus valid JSON sesuai schema"
+  ]
+}

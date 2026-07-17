@@ -1,0 +1,10 @@
+services:
+  ai-trading-radar:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "9190:9190"
+    volumes:
+      # Copy config_v3.example.json to config.json first. Keep real secrets
+      # outside source control and use paper=true until validated.
+      - ./config.json:/app/config.json:ro

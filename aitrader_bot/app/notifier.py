@@ -80,6 +80,25 @@ class TelegramNotifier:
             msg += f"\nEquity: ${equity:.2f}"
         self.send(msg)
 
+    def send_trade_report(
+        self,
+        symbol: str,
+        pnl: float,
+        reason: str,
+        *,
+        equity: float | None = None,
+    ) -> None:
+        """Send a concise realized P/L report after a position is closed."""
+        sign = "+" if pnl >= 0 else ""
+        message = (
+            f"[CLOSED] {symbol}\n"
+            f"Realized P/L: {sign}${pnl:.2f}\n"
+            f"Reason: {reason[:180]}"
+        )
+        if equity is not None:
+            message += f"\nEquity: ${equity:.2f}"
+        self.send(message)
+
     def send_error(self, error_msg: str) -> None:
         """Send an error notification."""
         self.send(f"[ERROR] {error_msg}")

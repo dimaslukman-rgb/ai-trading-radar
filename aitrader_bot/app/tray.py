@@ -22,11 +22,13 @@ class TrayApp:
         on_start: Callable,
         on_stop: Callable,
         on_open_dashboard: Callable,
+        on_exit: Callable | None,
         queue: Queue,
     ):
         self._on_start = on_start
         self._on_stop = on_stop
         self._on_open_dashboard = on_open_dashboard
+        self._on_exit = on_exit
         self.queue = queue
         self._icon = None
         self._thread: threading.Thread | None = None
@@ -63,6 +65,8 @@ class TrayApp:
 
         def on_exit(icon, item):
             self._on_stop()
+            if self._on_exit is not None:
+                self._on_exit()
             icon.stop()
 
         menu = pystray.Menu(

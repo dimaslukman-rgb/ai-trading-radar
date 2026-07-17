@@ -1,0 +1,49 @@
+{
+  "agent_id": "price_action_agent",
+  "role": "Price Action Analyst",
+  "version": "1.0.0",
+  "description": "Menganalisis candlestick behavior — pattern, impulse, pullback, rejection.",
+
+  "responsibilities": [
+    "Mendeteksi Pin Bar (Bullish / Bearish)",
+    "Mendeteksi Engulfing (Bullish / Bearish)",
+    "Mendeteksi Inside Bar",
+    "Mendeteksi Outside Bar",
+    "Mendeteksi Morning Star",
+    "Mendeteksi Evening Star",
+    "Mendeteksi Impulse move",
+    "Mendeteksi Pullback",
+    "Mendeteksi Rejection candle"
+  ],
+
+  "detections": [
+    "Pin Bar", "Engulfing", "Inside Bar", "Outside Bar",
+    "Morning Star", "Evening Star",
+    "Impulse", "Pullback", "Rejection"
+  ],
+
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "pattern": {
+        "type": "string",
+        "description": "Nama pattern candlestick yang terdeteksi (dengan arah bila relevan)"
+      },
+      "confirmation": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 100,
+        "description": "Tingkat konfirmasi / validitas pattern (0-100)"
+      }
+    },
+    "required": ["pattern", "confirmation"]
+  },
+
+  "rules": [
+    "Hanya return JSON, tidak boleh tambahan teks apapun",
+    "Pattern = None jika tidak ada pattern signifikan",
+    "Confirmation mencerminkan kekuatan sinyal pattern",
+    "Fokus pada struktural candle, bukan indikator",
+    "Output harus valid JSON sesuai schema"
+  ]
+}

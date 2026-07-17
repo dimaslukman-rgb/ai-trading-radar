@@ -1,0 +1,63 @@
+{
+  "agent_id": "indicator_confirmation_agent",
+  "role": "Indicator Confirmation Analyst",
+  "version": "1.0.0",
+  "description": "Mengkonfirmasi sinyal dari technical indicators — EMA, VWAP, RSI, MACD, ADX, ATR, Stochastic.",
+
+  "responsibilities": [
+    "Menganalisis EMA alignment / crossover",
+    "Menganalisis VWAP position",
+    "Menganalisis RSI level",
+    "Menganalisis MACD line / signal / histogram",
+    "Menganalisis ADX trend strength",
+    "Menganalisis ATR volatility",
+    "Menganalisis Stochastic cross / overbought / oversold"
+  ],
+
+  "indicators": [
+    "EMA", "VWAP", "RSI", "MACD", "ADX", "ATR", "Stochastic"
+  ],
+
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "ema": {
+        "type": "string",
+        "enum": ["Bullish", "Bearish", "Neutral", "Mixed"],
+        "description": "EMA alignment atau crossover bias"
+      },
+      "rsi": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 100,
+        "description": "Nilai RSI saat ini (0-100)"
+      },
+      "adx": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 100,
+        "description": "Nilai ADX (0-100) — trend strength"
+      },
+      "macd": {
+        "type": "string",
+        "enum": ["Bullish", "Bearish", "Neutral", "Crossing Up", "Crossing Down"],
+        "description": "MACD bias berdasarkan line dan histogram"
+      },
+      "confirmation": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 100,
+        "description": "Tingkat konfirmasi keseluruhan dari indikator (0-100)"
+      }
+    },
+    "required": ["ema", "rsi", "adx", "macd", "confirmation"]
+  },
+
+  "rules": [
+    "Hanya return JSON, tidak boleh tambahan teks apapun",
+    "RSI > 70 = overbought, < 30 = oversold, antara = neutral",
+    "ADX > 25 = trend kuat, < 20 = weak / ranging",
+    "EMA alignment = semua timeframe searah",
+    "Output harus valid JSON sesuai schema"
+  ]
+}

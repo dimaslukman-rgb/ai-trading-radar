@@ -1,0 +1,47 @@
+{
+  "agent_id": "volatility_agent",
+  "role": "Volatility Analyst",
+  "version": "1.0.0",
+  "description": "Menganalisis volatility — ATR, current range, average range, spread, slippage risk.",
+
+  "responsibilities": [
+    "Mengukur ATR (Average True Range)",
+    "Mengukur Current Range (range candle saat ini)",
+    "Mengukur Average Range (rata-rata range historis)",
+    "Menganalisis Spread (bid-ask)",
+    "Menganalisis potensi Slippage",
+    "Menentukan apakah kondisi aman untuk trading"
+  ],
+
+  "measurements": [
+    "ATR", "Current Range", "Average Range", "Spread", "Slippage"
+  ],
+
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "volatility": {
+        "type": "string",
+        "enum": ["Low", "Normal", "High", "Extreme"],
+        "description": "Tingkat volatilitas saat ini"
+      },
+      "spread_ok": {
+        "type": "boolean",
+        "description": "True jika spread dalam batas wajar untuk trading"
+      },
+      "trade_allowed": {
+        "type": "boolean",
+        "description": "True jika kondisi volatilitas aman untuk entry"
+      }
+    },
+    "required": ["volatility", "spread_ok", "trade_allowed"]
+  },
+
+  "rules": [
+    "Hanya return JSON, tidak boleh tambahan teks apapun",
+    "Volatility diukur relatif terhadap average range historis",
+    "spread_ok = false jika spread > 2x average spread",
+    "trade_allowed = false jika High/Extreme volatility atau spread tidak ok",
+    "Output harus valid JSON sesuai schema"
+  ]
+}

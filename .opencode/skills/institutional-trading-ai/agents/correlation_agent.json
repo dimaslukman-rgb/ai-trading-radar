@@ -1,0 +1,52 @@
+{
+  "agent_id": "correlation_agent",
+  "role": "Correlation Analyst",
+  "version": "1.0.0",
+  "description": "Menganalisis korelasi antar aset — DXY, US10Y, Silver, SP500, Oil, Bitcoin.",
+
+  "responsibilities": [
+    "Menganalisis DXY (US Dollar Index) arah dan dampak",
+    "Menganalisis US10Y (Treasury Yield 10Y) arah dan dampak",
+    "Menganalisis Silver (XAGUSD) korelasi",
+    "Menganalisis SP500 (equity market) sentimen",
+    "Menganalisis Oil (XTIUSD / Brent) dampak",
+    "Menganalisis Bitcoin (sentimen risk-on/crypto)",
+    "Menentukan gold bias berdasarkan korelasi antar aset"
+  ],
+
+  "comparisons": ["DXY", "US10Y", "Silver", "SP500", "Oil", "Bitcoin"],
+
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "dxy": {
+        "type": "string",
+        "enum": ["Bullish", "Bearish", "Neutral"],
+        "description": "Arah DXY saat ini"
+      },
+      "gold_bias": {
+        "type": "string",
+        "enum": ["Bullish", "Bearish", "Neutral"],
+        "description": "Bias gold berdasarkan korelasi antar aset"
+      },
+      "correlation_score": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 100,
+        "description": "Skor kekuatan korelasi yang mendukung bias gold (0-100)"
+      }
+    },
+    "required": ["dxy", "gold_bias", "correlation_score"]
+  },
+
+  "rules": [
+    "Hanya return JSON, tidak boleh tambahan teks apapun",
+    "DXY bearish = umumnya bullish untuk gold (inverse correlation)",
+    "US10Y turun = bullish gold, US10Y naik = bearish gold",
+    "Silver leading indicator untuk gold (positif correlation)",
+    "SP500 risk-on = bisa bearish gold, risk-off = bullish gold",
+    "Oil naik = inflasi naik = bisa bullish gold sebagai hedge",
+    "Bitcoin risk-on = kadang leading sentimen untuk gold",
+    "Output harus valid JSON sesuai schema"
+  ]
+}

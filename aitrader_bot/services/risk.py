@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime
 
 from ..decision import (
@@ -44,6 +45,39 @@ class RiskService:
     def __init__(self, config, position_machine) -> None:
         self.config = config
         self.decisions = TradingDecisionService(config, position_machine)
+        self._protection_config = config
+
+    def set_market_atr(self, atr: float, point_size: float | None) -> dict[str, float | bool]:
+        """Apply bounded ATR protection distances for the next order only.
+
+        Disabled by default.  The method intentionally leaves the position
+        state machine and exit rules unchanged; attached broker SL/TP remains
+        the safety boundary for entries made with this mode enabled.
+        """
+        self._protection_config = self.config
+        if not getattr(self.config, "atr_risk_enabled", False) or atr <= 0 or not point_size:
+            return {"enabled": False, "atr": max(0.0, atr)}
+        pip_value = point_size * 10
+        if pip_value <= 0:
+            return {"enabled": False, "atr": atr}
+        atr_pips = atr / pip_value
+        stop_pips = min(
+            self.config.atr_max_stop_pips,
+            max(self.config.atr_min_stop_pips, atr_pips * self.config.atr_stop_multiplier),
+        )
+        target_pips = max(stop_pips, atr_pips * self.config.atr_target_multiplier)
+        self._protection_config = replace(
+            self.config,
+            stop_loss_pips=stop_pips,
+            take_profit_pips=target_pips,
+        )
+        return {
+            "enabled": True,
+            "atr": atr,
+            "atr_pips": round(atr_pips, 2),
+            "stop_loss_pips": round(stop_pips, 2),
+            "take_profit_pips": round(target_pips, 2),
+        }
 
     def entry_blocks(
         self,
@@ -96,7 +130,7 @@ class RiskService:
         return compute_protective_prices(
             price,
             side,
-            self.config,
+            self._protection_config,
             symbol=symbol,
             point_size=point_size,
         )

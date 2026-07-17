@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import io
+import sys
 import tempfile
 import unittest
 from contextlib import redirect_stdout
@@ -304,6 +305,44 @@ class Mt5ProtectiveOrderTests(unittest.TestCase):
         self.broker = Mt5Broker()
         self.broker._mt5 = self.transport
         self.broker._connected = True
+
+    def test_mt5_connect_launches_configured_terminal_and_logs_into_config_account(self) -> None:
+        calls = []
+        transport = SimpleNamespace(
+            initialize=lambda *args, **kwargs: calls.append((args, kwargs)) or True,
+            account_info=lambda: SimpleNamespace(login=12345, server="Broker-Demo"),
+            last_error=lambda: (0, "ok"),
+            shutdown=lambda: None,
+        )
+        with tempfile.NamedTemporaryFile(suffix="terminal64.exe") as terminal:
+            broker = Mt5Broker(
+                server="Broker-Demo",
+                login=12345,
+                password="secret",
+                terminal_path=terminal.name,
+                timeout_ms=45_000,
+            )
+            with patch.dict(sys.modules, {"MetaTrader5": transport}):
+                self.assertTrue(broker.connect())
+
+        args, kwargs = calls[0]
+        self.assertEqual(Path(args[0]), Path(terminal.name).resolve())
+        self.assertEqual(kwargs["login"], 12345)
+        self.assertEqual(kwargs["server"], "Broker-Demo")
+        self.assertEqual(kwargs["password"], "secret")
+        self.assertEqual(kwargs["timeout"], 45_000)
+
+    def test_mt5_connect_rejects_terminal_account_mismatch(self) -> None:
+        transport = SimpleNamespace(
+            initialize=lambda *args, **kwargs: True,
+            account_info=lambda: SimpleNamespace(login=99999, server="Broker-Demo"),
+            last_error=lambda: (0, "ok"),
+            shutdown=lambda: None,
+        )
+        broker = Mt5Broker(server="Broker-Demo", login=12345, password="secret")
+        with patch.dict(sys.modules, {"MetaTrader5": transport}):
+            with self.assertRaisesRegex(PermissionError, "bukan akun config"):
+                broker.connect()
 
     def test_mt5_entry_request_attaches_normalized_sl_tp(self) -> None:
         result = self.broker.place_order(

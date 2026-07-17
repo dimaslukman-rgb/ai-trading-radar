@@ -4,20 +4,29 @@
 
 **Professional Multi-Factor Analysis Engine — XAUUSD Scalping for MT5/Finex**
 
-[![Version](https://img.shields.io/badge/version-2.0.0-00ff88?style=for-the-badge&labelColor=0a0e17)](https://github.com/dimaslukman-rgb/ai-trading-radar/releases/tag/v2.0.0)
+[![Version](https://img.shields.io/badge/version-3.0.0-00ff88?style=for-the-badge&labelColor=0a0e17)](https://github.com/dimaslukman-rgb/ai-trading-radar/releases)
 [![Python](https://img.shields.io/badge/Python-3.10+-00d4ff?style=for-the-badge&labelColor=0a0e17&logo=python&logoColor=00d4ff)](https://python.org)
 [![License](https://img.shields.io/badge/License-Proprietary-a855f7?style=for-the-badge&labelColor=0a0e17)]()
 [![Platform](https://img.shields.io/badge/Platform-Windows-ffaa00?style=for-the-badge&labelColor=0a0e17&logo=windows&logoColor=ffaa00)]()
 
 Live AI-powered scalping signals, real-time dashboard, and automated MT5 execution — all in one Windows desktop application.
 
-[Download v2.0.0 Installer](https://github.com/dimaslukman-rgb/ai-trading-radar/releases/tag/v2.0.0)  |  [Report Bug](https://github.com/dimaslukman-rgb/ai-trading-radar/issues)  |  [View Dashboard Demo](https://github.com/dimaslukman-rgb/ai-trading-radar)
+[View Releases](https://github.com/dimaslukman-rgb/ai-trading-radar/releases)  |  [Report Bug](https://github.com/dimaslukman-rgb/ai-trading-radar/issues)  |  [View Dashboard Demo](https://github.com/dimaslukman-rgb/ai-trading-radar)
 
 </div>
 
 ---
 
-## What's New in v2.0.0
+## What's New in v3.0.0
+
+- **Multi-pair engine** — one isolated processor, state machine, strategy, and risk service per configured symbol.
+- **Adaptive intelligence** — bounded performance weighting for agent votes, ATR-based protective pricing (opt-in), and optional Gemini macro context.
+- **Transparent dashboard** — symbol selector, account equity curve, Chief Trader decision, and compact per-agent reasoning.
+- **Operational tooling** — offline optimizer report, richer Telegram close/P&L reports, and Docker deployment for non-MT5 workflows.
+
+Read [the v3 guide](docs/v3.0.0.md) before enabling multi-pair, agent execution, Gemini, or ATR protection on a live account.
+
+## v2.0.0 foundation
 
 ### 🔐 MT5 Login Dialog (New!)
 Every time the bot runs, a **popup login dialog** (PyQt6) appears asking for MT5 credentials:
@@ -71,17 +80,12 @@ Each agent votes with a confidence score. The **Chief Trader** compiles the anal
 
 ---
 
-## Auto-Update System
+## Update delivery
 
-The app automatically checks for new versions via GitHub Releases!
-
-- **Background check** — Checks every 24 hours automatically
-- **One-click update** — Download & install directly from the web dashboard
-- **Progress bar** — See download progress in real-time
-- **Smart installer** — Inno Setup detects existing install and upgrades seamlessly
-- **CLI support** — `--check-update` and `--version` flags
-
-> **How it works:** The app checks GitHub Releases in the background. When a new version is found, a banner appears in the dashboard — just click **Download** then **Install**.
+The current source does **not** install updates automatically. Publish a signed
+installer or portable release on GitHub Releases and have v1.0.0 users install
+the v3 package manually once. An updater bridge must be added to a future
+installer before later releases can be discovered in-app.
 
 ---
 
@@ -347,6 +351,28 @@ ai-trading-radar/
 **Proprietary** — Private distribution with serial-key activation.
 
 This software is not open-source. A valid license key is required to use the application.
+
+### Activation
+
+On first launch the app asks for a serial key. Enter the key from `tools/make_serial.py`:
+
+```powershell
+python tools/make_serial.py --plan 1m --customer "Nama Pembeli"
+python tools/make_serial.py --plan lifetime
+```
+
+The issued serial is saved to `%APPDATA%\AITradingRadar\license.json`.
+
+CLI helpers:
+
+```powershell
+python run_scalping.py --version            # print AI Trading Radar v3.0.0
+python run_scalping.py --activate-serial XXXXX-XXXXX-XXXXX-XXXXX-XXXXX-XXXXX-XXXXX-X  # activate without GUI
+python run_scalping.py --reset-license      # clear stored license
+python run_scalping.py --check-update       # check latest GitHub release
+```
+
+Legacy `AIB-...` serials (v2.x customers) are still accepted for backward compatibility.
 
 ---
 

@@ -1,0 +1,84 @@
+{
+  "agent_id": "market_structure_agent",
+  "role": "Market Structure Analyst",
+  "version": "1.0.0",
+  "description": "Bertanggung jawab ONLY untuk menentukan market structure. Tidak menghasilkan sinyal trading. Tidak merekomendasikan BUY atau SELL.",
+
+  "responsibilities": [
+    "Menentukan market structure saat ini",
+    "Tidak menghasilkan sinyal trading",
+    "Tidak merekomendasikan BUY atau SELL"
+  ],
+
+  "output_classifications": [
+    "Bullish", "Bearish", "Range", "Transition",
+    "Accumulation", "Distribution", "Expansion", "Correction"
+  ],
+
+  "timeframes": ["Weekly", "Daily", "H4", "H1", "M15", "M5"],
+
+  "detections": [
+    "Higher High", "Higher Low", "Lower High", "Lower Low",
+    "Break of Structure", "CHoCH",
+    "Swing High", "Swing Low",
+    "Internal Structure", "External Structure",
+    "Compression", "Expansion"
+  ],
+
+  "phase_classifications": [
+    "Bullish Trend", "Bearish Trend", "Range",
+    "Distribution", "Accumulation",
+    "Re-accumulation", "Re-distribution"
+  ],
+
+  "evaluations": [
+    "Trend Strength",
+    "Structure Quality",
+    "Continuation Probability",
+    "Reversal Probability"
+  ],
+
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "market_structure": {
+        "type": "string",
+        "enum": ["Bullish", "Bearish", "Range", "Transition", "Accumulation", "Distribution", "Expansion", "Correction"]
+      },
+      "trend": {
+        "type": "string",
+        "description": "Pola HH HL, LL LH, atau sideway"
+      },
+      "bos": {
+        "type": "string",
+        "description": "Break of Structure direction: Bullish, Bearish, atau None"
+      },
+      "choch": {
+        "type": "string",
+        "description": "Change of Character: Bullish, Bearish, atau None"
+      },
+      "phase": {
+        "type": "string",
+        "enum": ["Expansion", "Correction", "Accumulation", "Distribution", "Re-accumulation", "Re-distribution", "Compression"]
+      },
+      "strength": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 100,
+        "description": "Trend strength score 0-100"
+      },
+      "summary": {
+        "type": "string",
+        "description": "One-line summary of market structure"
+      }
+    },
+    "required": ["market_structure", "trend", "bos", "choch", "phase", "strength", "summary"]
+  },
+
+  "rules": [
+    "Hanya return JSON, tidak boleh tambahan teks apapun",
+    "Tidak merekomendasikan BUY atau SELL dalam bentuk apapun",
+    "Analisis dilakukan di semua timeframe: Weekly, Daily, H4, H1, M15, M5",
+    "Output harus valid JSON sesuai schema"
+  ]
+}

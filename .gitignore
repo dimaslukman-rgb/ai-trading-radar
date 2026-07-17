@@ -25,6 +25,7 @@ config.local.json
 bot_bg.log
 perf_report_latest.txt
 research_report*.json
+optimizer_report*.json
 nul
 
 # Proprietary tools — not for public repo

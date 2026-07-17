@@ -342,9 +342,15 @@ def notify_clients() -> None:
 
 # ── Start server ──────────────────────────────────────────────────────
 
+class _DashboardServer(ThreadingHTTPServer):
+    """Do not share a dashboard port with an unrelated bot instance."""
+
+    allow_reuse_address = False
+
+
 def start_web_dashboard(host: str = "127.0.0.1", port: int = 8080) -> ThreadingHTTPServer:
     """Start the dashboard HTTP server in a daemon thread. Returns the server object."""
-    server = ThreadingHTTPServer((host, port), DashboardHandler)
+    server = _DashboardServer((host, port), DashboardHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     bound_port = server.server_address[1]

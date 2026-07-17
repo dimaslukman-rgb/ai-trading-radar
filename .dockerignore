@@ -1,0 +1,12 @@
+.git
+.venv
+__pycache__
+*.pyc
+*.log
+build
+dist
+installer_output
+data
+config.json
+config_finex.json
+config.local.json

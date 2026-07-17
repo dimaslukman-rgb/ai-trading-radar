@@ -1,0 +1,53 @@
+{
+  "agent_id": "entry_strategy_agent",
+  "role": "Entry Strategy Analyst",
+  "version": "1.0.0",
+  "description": "Menghasilkan entry berdasarkan konfirmasi dari agent sebelumnya — trend, liquidity, SMC, price action.",
+
+  "requirements": [
+    "Trend aligned — semua timeframe searah",
+    "Liquidity confirmed — likuiditas sudah diambil",
+    "SMC confirmed — order block / FVG / discount zone valid",
+    "Price Action confirmed — pattern candle konfirmasi"
+  ],
+
+  "inputs_from_agents": [
+    "trend_analyst_agent",
+    "liquidity_agent",
+    "smart_money_agent",
+    "price_action_agent"
+  ],
+
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "entry": {
+        "type": "number",
+        "description": "Harga entry yang diusulkan"
+      },
+      "entry_type": {
+        "type": "string",
+        "enum": ["Limit", "Stop", "Market"],
+        "description": "Tipe order entry"
+      },
+      "quality": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 100,
+        "description": "Kualitas setup entry (0-100)"
+      }
+    },
+    "required": ["entry", "entry_type", "quality"]
+  },
+
+  "rules": [
+    "Hanya return JSON, tidak boleh tambahan teks apapun",
+    "Entry hanya dihasilkan jika semua requirements terpenuhi",
+    "Entry price harus presisi (2-4 desimal sesuai instrumen)",
+    "entry_type = Limit jika entry di order block / FVG",
+    "entry_type = Stop jika entry setelah break of structure",
+    "entry_type = Market hanya dalam kondisi konfirmasi sempurna",
+    "Quality mencerminkan jumlah konfirmasi dari agent sebelumnya",
+    "Output harus valid JSON sesuai schema"
+  ]
+}

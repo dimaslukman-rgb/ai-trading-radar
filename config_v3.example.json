@@ -1,0 +1,54 @@
+{
+  "symbol": "XAUUSD",
+  "market": "forex",
+  "symbols": [
+    {
+      "symbol": "XAUUSD",
+      "enabled": true,
+      "scalping": {
+        "candle_timeframe": "5m",
+        "interval_seconds": 300,
+        "atr_risk_enabled": false
+      }
+    },
+    {
+      "symbol": "EURUSD",
+      "enabled": false,
+      "scalping": {
+        "candle_timeframe": "5m",
+        "interval_seconds": 300,
+        "atr_risk_enabled": false
+      }
+    }
+  ],
+  "ai": {
+    "agents_enabled": true,
+    "agent_execution_enabled": false,
+    "gemini_enabled": false,
+    "gemini_api_key": "",
+    "gemini_model": "gemini-2.0-flash",
+    "gemini_timeout_seconds": 8
+  },
+  "scalping": {
+    "news_filter_enabled": true,
+    "max_spread_points": 25,
+    "stop_loss_pips": 30,
+    "take_profit_pips": 20,
+    "atr_risk_enabled": false,
+    "atr_stop_multiplier": 1.5,
+    "atr_target_multiplier": 2.5,
+    "atr_min_stop_pips": 5,
+    "atr_max_stop_pips": 100
+  },
+  "telegram": {
+    "enabled": false,
+    "bot_token": "",
+    "chat_id": ""
+  },
+  "brokers": {
+    "default": {
+      "backend": "paper",
+      "paper": true
+    }
+  }
+}

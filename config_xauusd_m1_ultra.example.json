@@ -78,7 +78,10 @@
       "backend": "mt5",
       "server": "FinexBisnisSolusi-Demo",
       "login": null,
-      "password": ""
+      "password": "",
+      "symbol_map": null,
+      "terminal_path": "C:\\Program Files\\MetaTrader 5\\terminal64.exe",
+      "timeout_ms": 60000
     }
   }
 }

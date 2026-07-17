@@ -1,0 +1,56 @@
+{
+  "agent_id": "liquidity_agent",
+  "role": "Liquidity Analyst",
+  "version": "1.0.0",
+  "description": "Menganalisis liquidity — equal highs/lows, buy/sell side liquidity, sweep, stop hunt, inducement.",
+
+  "responsibilities": [
+    "Mendeteksi Equal High / Equal Low",
+    "Mendeteksi Buy Side Liquidity (BSL)",
+    "Mendeteksi Sell Side Liquidity (SSL)",
+    "Mendeteksi Liquidity Sweep",
+    "Mendeteksi Stop Hunt",
+    "Mendeteksi Inducement",
+    "Menentukan next target setelah likuiditas diambil"
+  ],
+
+  "detections": [
+    "Equal High", "Equal Low",
+    "Buy Side Liquidity", "Sell Side Liquidity",
+    "Liquidity Sweep",
+    "Stop Hunt",
+    "Inducement"
+  ],
+
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "liquidity": {
+        "type": "string",
+        "enum": ["Buy Side", "Sell Side", "Both", "None"],
+        "description": "Jenis likuiditas yang terdeteksi"
+      },
+      "sweep": {
+        "type": "boolean",
+        "description": "Apakah terjadi liquidity sweep"
+      },
+      "inducement": {
+        "type": "boolean",
+        "description": "Apakah terdeteksi inducement (false breakout)"
+      },
+      "next_target": {
+        "type": "string",
+        "description": "Target harga berikutnya setelah likuiditas diambil"
+      }
+    },
+    "required": ["liquidity", "sweep", "inducement", "next_target"]
+  },
+
+  "rules": [
+    "Hanya return JSON, tidak boleh tambahan teks apapun",
+    "Fokus pada level likuiditas, bukan entry atau prediksi arah",
+    "Sweep = true jika terjadi breakout palsu ke level likuiditas sebelum reversal",
+    "Inducement = false breakout yang menjebak retail sebelum harga berbalik",
+    "Output harus valid JSON sesuai schema"
+  ]
+}

@@ -1,11 +1,11 @@
 ; AI Trading Bot — Inno Setup Installer Script
 ; Build with Inno Setup Compiler (https://jrsoftware.org/isinfo.php)
 
-#define MyAppName "AI Trading Bot"
-#define MyAppVersion "1.0.0"
-#define MyAppPublisher "AI Trading Bot"
-#define MyAppURL "https://github.com/ai-trading-bot"
-#define MyAppExeName "AITradingBot.exe"
+#define MyAppName "AI Trading Radar"
+#define MyAppVersion "3.0.0"
+#define MyAppPublisher "AI Trading Radar contributors"
+#define MyAppURL "https://github.com/dimaslukman-rgb/ai-trading-radar"
+#define MyAppExeName "AITradingRadar.exe"
 
 [Setup]
 AppId={{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}
@@ -19,7 +19,7 @@ DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 OutputDir=installer_output
-OutputBaseFilename=AITradingBot_Setup_v{#MyAppVersion}
+OutputBaseFilename=AITradingRadar_Setup_v{#MyAppVersion}
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
@@ -35,6 +35,7 @@ Name: "autostart"; Description: "&Auto-start with Windows (recommended)"; GroupD
 
 [Files]
 Source: "dist\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "config_finex_ultra_m1.json"; DestDir: "{app}"; DestName: "config_finex_ultra_m1.json"; Flags: ignoreversion onlyifdoesntexist
 Source: "config.example.json"; DestDir: "{app}"; DestName: "config.json"; Flags: ignoreversion onlyifdoesntexist
 Source: "data\*"; DestDir: "{app}\data"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "README.md"; DestDir: "{app}"; Flags: ignoreversion
@@ -44,7 +45,7 @@ Source: "README.md"; DestDir: "{app}"; Flags: ignoreversion
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{group}\Edit Config"; Filename: "{app}\config.json"
-Name: "{group}\Log Folder"; Filename: "{localappdata}\AITradingBot\logs"
+Name: "{group}\Log Folder"; Filename: "{localappdata}\AITradingRadar"
 Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 Name: "{userstartup}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: autostart

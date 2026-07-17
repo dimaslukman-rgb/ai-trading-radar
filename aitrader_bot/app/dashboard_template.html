@@ -32,6 +32,11 @@ body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--
 .status-badge.stopped{background:rgba(100,116,139,.15);color:var(--text3);border:1px solid rgba(100,116,139,.3)}
 .status-badge.error{background:rgba(255,68,68,.15);color:var(--red);border:1px solid rgba(255,68,68,.3)}
 .status-badge.starting{background:rgba(255,170,0,.15);color:var(--yellow);border:1px solid rgba(255,170,0,.3)}
+.trade-alert{display:none;align-items:center;justify-content:space-between;gap:10px;margin:8px 0 14px;padding:10px 14px;border-radius:10px;border:1px solid transparent;font-size:.78rem;font-weight:800;letter-spacing:.2px;text-transform:uppercase}
+.trade-alert.on{display:flex;background:rgba(0,255,136,.08);color:var(--green);border-color:rgba(0,255,136,.28)}
+.trade-alert.off{display:flex;background:rgba(255,68,68,.14);color:var(--red);border-color:rgba(255,68,68,.45);box-shadow:0 0 0 1px rgba(255,68,68,.18),0 0 22px rgba(255,68,68,.14);animation:pulseAlert 1.2s ease-in-out infinite}
+.trade-alert.unknown{display:flex;background:rgba(255,170,0,.10);color:var(--yellow);border-color:rgba(255,170,0,.28)}
+@keyframes pulseAlert{0%,100%{transform:translateY(0);box-shadow:0 0 0 1px rgba(255,68,68,.18),0 0 18px rgba(255,68,68,.12)}50%{transform:translateY(-1px);box-shadow:0 0 0 1px rgba(255,68,68,.32),0 0 30px rgba(255,68,68,.28)}}
 .clock{font-family:'Consolas',monospace;font-size:.85rem;color:var(--text2)}
 
 /* ── Grid Layouts ───────────────────────────────────────────── */
@@ -235,6 +240,7 @@ tr:hover{background:rgba(0,255,136,.02)}
         <div class="value" id="mt5AccountDisplay" style="font-size:.85rem;color:var(--cyan)">—</div>
         <div class="label" style="font-size:.6rem;margin-top:2px;color:var(--text3)">SERVER</div>
         <div class="value" id="mt5ServerDisplay" style="font-size:.85rem;color:var(--yellow)">—</div>
+        <div class="value" id="mt5TradeAllowedDisplay" style="font-size:.66rem;margin-top:3px;color:var(--text3)">—</div>
       </div>
       <span id="mt5StatusBadge" style="padding:4px 10px;border-radius:20px;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;background:rgba(100,116,139,.15);color:var(--text3);border:1px solid rgba(100,116,139,.3)">DISCONNECTED</span>
       <span id="modeBadge" style="padding:4px 10px;border-radius:20px;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;background:rgba(255,68,68,.15);color:var(--red);border:1px solid rgba(255,68,68,.3);display:none">⚡AGGRESSIVE</span>
@@ -242,6 +248,8 @@ tr:hover{background:rgba(0,255,136,.02)}
       <span class="clock" id="clock">--:--:--</span>
     </div>
 </div>
+
+<div id="mt5TradeAlert" class="trade-alert unknown">MT5 AUTO TRADING STATUS UNKNOWN</div>
 
 <!-- ═══ XAUUSD REAL-TIME CHART ═══════════════════════════════ -->
 <div class="section-title" style="margin-top:16px"><span class="dot"></span> XAUUSD REAL-TIME CHART</div>
@@ -258,6 +266,23 @@ tr:hover{background:rgba(0,255,136,.02)}
       </span>
       <span id="chartTimeout" style="display:none;padding:2px 8px;background:rgba(255,170,0,.1);border-radius:4px;border:1px solid rgba(255,170,0,.2);color:var(--yellow);font-size:.7rem">⏱ 0:00</span>
     </span>
+  </div>
+</div>
+
+<!-- ═══ V3 PORTFOLIO OVERVIEW ════════════════════════════════ -->
+<div class="section-title"><span class="dot"></span> V3 PORTFOLIO OVERVIEW</div>
+<div class="grid-3" style="margin-bottom:16px">
+  <div class="card" style="grid-column:span 2">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div class="label">EQUITY CURVE</div>
+      <span id="equityCurveLabel" style="font-size:.72rem;color:var(--text3)">Waiting for account data</span>
+    </div>
+    <canvas id="equityCurve" height="150" style="width:100%;height:150px;display:block"></canvas>
+  </div>
+  <div class="card">
+    <div class="label" style="margin-bottom:10px">ACTIVE SYMBOL</div>
+    <select id="symbolSelect" style="width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:9px"></select>
+    <div id="symbolSummary" style="margin-top:12px;font-size:.78rem;color:var(--text3)">No symbol processors active</div>
   </div>
 </div>
 
@@ -404,6 +429,13 @@ tr:hover{background:rgba(0,255,136,.02)}
   </div>
 </div>
 
+<!-- ═══ AGENT REASONING ═════════════════════════════════════ -->
+<div class="section-title"><span class="dot"></span> AGENT REASONING</div>
+<div class="card" style="margin-bottom:16px">
+  <div id="chiefSummary" style="font-size:.82rem;color:var(--text2);margin-bottom:10px">Chief Trader is waiting for market context.</div>
+  <div id="agentReasoning" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px"></div>
+</div>
+
 <!-- ═══ NEWS CATALYST ═══════════════════════════════════════ -->
 <div class="section-title"><span class="dot"></span> NEWS CATALYST</div>
 <div class="card" style="margin-bottom:16px">
@@ -519,7 +551,6 @@ tr:hover{background:rgba(0,255,136,.02)}
   </button>
 </div>
 
-<script src="https://s3.tradingview.com/tv.js"></script>
 <script>
 // ── TradingView XAUUSD Widget ────────────────────────────
 function initTradingView() {
@@ -560,10 +591,90 @@ function initTradingView() {
   document.getElementById('chartStatus').textContent = 'Live — M1 Real-Time';
 }
 
+function loadTradingView() {
+  const script = document.createElement('script');
+  script.src = 'https://s3.tradingview.com/tv.js';
+  script.async = true;
+  script.onload = initTradingView;
+  script.onerror = () => {
+    $('chartStatus').textContent = 'Chart widget unavailable — check connection';
+  };
+  document.head.appendChild(script);
+}
+
 // ── DOM refs ─────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
 const logBox = $('logBox');
 let logCount = 0;
+let selectedSymbol = '';
+let lastSnapshot = null;
+
+function escapeHtml(value) {
+  const node = document.createElement('span');
+  node.textContent = String(value == null ? '' : value);
+  return node.innerHTML;
+}
+
+function renderEquityCurve(history) {
+  const canvas = $('equityCurve');
+  const label = $('equityCurveLabel');
+  const points = Array.isArray(history) ? history.filter(p => Number.isFinite(Number(p.equity))) : [];
+  const width = Math.max(280, canvas.clientWidth || 280);
+  const height = 150;
+  const ratio = window.devicePixelRatio || 1;
+  canvas.width = width * ratio; canvas.height = height * ratio;
+  const ctx = canvas.getContext('2d'); ctx.scale(ratio, ratio);
+  ctx.clearRect(0, 0, width, height);
+  if (points.length < 2) {
+    ctx.fillStyle = '#64748b'; ctx.font = '12px sans-serif';
+    ctx.fillText('Equity history will appear after account updates.', 12, 28);
+    label.textContent = points.length === 1 ? '1 data point' : 'Waiting for account data';
+    return;
+  }
+  const values = points.map(p => Number(p.equity));
+  const min = Math.min(...values), max = Math.max(...values);
+  const span = Math.max(0.01, max - min);
+  const pad = 14;
+  const x = i => pad + i * (width - pad * 2) / (points.length - 1);
+  const y = value => height - pad - ((value - min) / span) * (height - pad * 2);
+  ctx.strokeStyle = '#1a2035'; ctx.lineWidth = 1;
+  for (let row = 0; row < 4; row++) { const yy = pad + row * (height - pad * 2) / 3; ctx.beginPath(); ctx.moveTo(pad, yy); ctx.lineTo(width - pad, yy); ctx.stroke(); }
+  const up = values[values.length - 1] >= values[0];
+  ctx.beginPath(); values.forEach((value, i) => i ? ctx.lineTo(x(i), y(value)) : ctx.moveTo(x(i), y(value)));
+  ctx.strokeStyle = up ? '#00ff88' : '#ff4444'; ctx.lineWidth = 2; ctx.stroke();
+  label.textContent = `${points.length} points · $${values[0].toFixed(2)} → $${values[values.length - 1].toFixed(2)}`;
+}
+
+function renderSymbolSelector(allSymbols, activeSymbols) {
+  const select = $('symbolSelect');
+  const symbols = Object.keys(allSymbols || {});
+  if (!symbols.includes(selectedSymbol)) selectedSymbol = symbols[0] || '';
+  const previous = select.value;
+  select.innerHTML = symbols.map(symbol => `<option value="${escapeHtml(symbol)}">${escapeHtml(symbol)}</option>`).join('');
+  select.value = selectedSymbol;
+  if (!select.dataset.bound) {
+    select.addEventListener('change', event => { selectedSymbol = event.target.value; if (lastSnapshot) updateUI(lastSnapshot); });
+    select.dataset.bound = 'true';
+  }
+  if (previous && symbols.includes(previous) && !selectedSymbol) select.value = previous;
+  $('symbolSummary').textContent = activeSymbols && activeSymbols.length
+    ? `${activeSymbols.length} processor${activeSymbols.length === 1 ? '' : 's'} active: ${activeSymbols.join(', ')}`
+    : 'No symbol processors active';
+}
+
+function renderAgentReasoning(data) {
+  const chief = data.chief_decision || {};
+  $('chiefSummary').textContent = chief.decision
+    ? `Chief: ${chief.decision} · ${chief.confidence || 0}% · ${chief.reason || 'No summary'}`
+    : 'Chief Trader is waiting for market context.';
+  const rows = data.agent_reasoning || [];
+  $('agentReasoning').innerHTML = rows.length ? rows.map(row => `
+    <div style="padding:9px;background:var(--bg);border:1px solid var(--border);border-radius:6px">
+      <div style="display:flex;justify-content:space-between;gap:8px;color:var(--cyan);font-size:.76rem;font-weight:700"><span>${escapeHtml(row.agent)}</span><span>×${Number(row.weight || 1).toFixed(2)}</span></div>
+      <div style="margin-top:5px;font-size:.74rem;color:var(--text2)">${escapeHtml(row.summary)}</div>
+    </div>`).join('')
+    : '<div class="no-news">No agent reasoning yet</div>';
+}
 
 // ── Clock ────────────────────────────────────────────────────
 setInterval(() => {
@@ -629,6 +740,14 @@ function buildExplanation(analysis, action, conf) {
 // ── Main update function ─────────────────────────────────────
 function updateUI(data) {
   if (!data) return;
+  lastSnapshot = data;
+  const allSymbols = data.all_symbols || {};
+  renderSymbolSelector(allSymbols, data.active_symbols || []);
+  if (selectedSymbol && allSymbols[selectedSymbol]) {
+    data = Object.assign({}, data, allSymbols[selectedSymbol], {symbol: selectedSymbol});
+  }
+  renderEquityCurve(data.equity_history || []);
+  renderAgentReasoning(data);
 
   // Equity & Balance header
   if (data.equity != null) {
@@ -681,8 +800,27 @@ function updateUI(data) {
   // MT5 Account and Server display
   const mt5Account = data.mt5_login || '—';
   const mt5Server = data.mt5_server || '—';
+  const mt5TradeAllowed = data.mt5_trade_allowed;
   $('mt5AccountDisplay').textContent = mt5Account;
   $('mt5ServerDisplay').textContent = mt5Server;
+  const mt5TradeAllowedDisplay = $('mt5TradeAllowedDisplay');
+  const mt5TradeAlert = $('mt5TradeAlert');
+  if (mt5TradeAllowed === false) {
+    mt5TradeAllowedDisplay.textContent = 'AUTO TRADING OFF';
+    mt5TradeAllowedDisplay.style.color = 'var(--red)';
+    mt5TradeAlert.textContent = 'MT5 AUTO TRADING OFF - ENABLE IT IN THE TERMINAL';
+    mt5TradeAlert.className = 'trade-alert off';
+  } else if (mt5TradeAllowed === true) {
+    mt5TradeAllowedDisplay.textContent = 'AUTO TRADING ON';
+    mt5TradeAllowedDisplay.style.color = 'var(--green)';
+    mt5TradeAlert.textContent = 'MT5 AUTO TRADING ON - READY FOR ORDERS';
+    mt5TradeAlert.className = 'trade-alert on';
+  } else {
+    mt5TradeAllowedDisplay.textContent = 'AUTO TRADING UNKNOWN';
+    mt5TradeAllowedDisplay.style.color = 'var(--text3)';
+    mt5TradeAlert.textContent = 'MT5 AUTO TRADING STATUS UNKNOWN';
+    mt5TradeAlert.className = 'trade-alert unknown';
+  }
 
   // Status badge
   const s = data.status || 'stopped';
@@ -875,12 +1013,22 @@ function updateUI(data) {
   const tbody = $('tradesBody');
   if (trades.length > 0) {
     tbody.innerHTML = trades.slice().reverse().slice(0, 20).map(t => {
-      const act = t.action || '';
-      const cls = act.includes('BUY') ? 'buy' : act.includes('SELL') || act.includes('CLOSED') ? 'sell' : 'sltp';
-      const pnlStr = t.pnl != null
-        ? `<span style="color:${t.pnl >= 0 ? 'var(--green)' : 'var(--red)'}">${t.pnl >= 0 ? '+' : ''}$${t.pnl.toFixed(2)}</span>`
-        : '<span style="color:var(--text3)">--</span>';
-      const statusTag = act.includes('BUY') ? '<span class="tag confirmed">OPEN</span>' : '<span class="tag sell">CLOSED</span>';
+	      const act = t.action || '';
+	      let cls = 'sltp';
+	      if (act.includes('BUY')) cls = 'buy';
+	      else if (act.includes('SELL') || act.includes('CLOSED')) cls = 'sell';
+	      else if (act.includes('ERR') || act.includes('UNCONFIRMED')) cls = 'sell'; // merah untuk error
+
+	      const pnlStr = t.pnl != null
+	        ? `<span style="color:${t.pnl >= 0 ? 'var(--green)' : 'var(--red)'}">${t.pnl >= 0 ? '+' : ''}$${t.pnl.toFixed(2)}</span>`
+	        : '<span style="color:var(--text3)">--</span>';
+
+	      let statusTag = '<span class="tag sell">CLOSED</span>';
+	      if (act.includes('BUY')) {
+	        statusTag = '<span class="tag confirmed">OPEN</span>';
+	      } else if (act.includes('ERR') || act.includes('UNCONFIRMED')) {
+	        statusTag = '<span class="tag sell" style="background:rgba(255,68,68,.25);border-color:var(--red)">ERR_CLOSE</span>';
+	      }
       return `<tr>
         <td style="color:var(--text3)">${(t.time || '').slice(0,10) || '--'}</td>
         <td>${t.time || '--'}</td>
@@ -936,8 +1084,8 @@ setInterval(() => {
 
 // ── Initial load ─────────────────────────────────────────────
 fetch('/api/status').then(r => r.json()).then(d => { updateUI(d); if (d.logs) logCount = d.logs.length; }).catch(() => {});
-// Init TradingView chart after page loads
-setTimeout(initTradingView, 500);
+// Load the optional TradingView widget without blocking dashboard data updates.
+loadTradingView();
 </script>
 </body>
 </html>

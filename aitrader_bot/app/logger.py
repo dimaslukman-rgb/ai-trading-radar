@@ -42,17 +42,26 @@ def setup_logging(name: str = "AITradingBot", level: int = logging.INFO) -> logg
     )
 
     # --- Rotating file handler ---
-    log_dir = get_log_dir()
-    log_file = log_dir / "trading_bot.log"
-    file_handler = RotatingFileHandler(
-        filename=str(log_file),
-        maxBytes=5 * 1024 * 1024,  # 5 MB
-        backupCount=5,
-        encoding="utf-8",
-    )
-    file_handler.setFormatter(formatter)
-    file_handler.setLevel(level)
-    logger.addHandler(file_handler)
+    # A locked profile directory must not prevent a trading process from
+    # starting.  Console logging remains available and the next launch can
+    # retry the normal file location.
+    log_file: Path | None = None
+    try:
+        log_dir = get_log_dir()
+        log_file = log_dir / "trading_bot.log"
+        file_handler = RotatingFileHandler(
+            filename=str(log_file),
+            maxBytes=5 * 1024 * 1024,  # 5 MB
+            backupCount=5,
+            encoding="utf-8",
+        )
+        file_handler.setFormatter(formatter)
+        file_handler.setLevel(level)
+        logger.addHandler(file_handler)
+    except OSError:
+        # Deliberately avoid logging here: the console handler is not added
+        # until below and the failed path may itself be unavailable.
+        pass
 
     # --- Console handler ---
     console_handler = logging.StreamHandler()
@@ -60,5 +69,8 @@ def setup_logging(name: str = "AITradingBot", level: int = logging.INFO) -> logg
     console_handler.setLevel(level)
     logger.addHandler(console_handler)
 
-    logger.info(f"Logging initialized: {log_file}")
+    if log_file is not None:
+        logger.info(f"Logging initialized: {log_file}")
+    else:
+        logger.warning("File logging unavailable; using console logging only")
     return logger

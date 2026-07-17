@@ -1,0 +1,46 @@
+{
+  "agent_id": "trade_management_agent",
+  "role": "Trade Manager",
+  "version": "1.0.0",
+  "description": "Mengelola open trades — move SL to break even, partial close, trailing stop, scale out.",
+
+  "responsibilities": [
+    "Memindahkan Stop Loss ke Break Even saat harga mencapai level tertentu",
+    "Melakukan Partial Close (take profit sebagian)",
+    "Mengaktifkan Trailing Stop",
+    "Melakukan Scale Out (menutup posisi bertahap)",
+    "Memantau risk/reward dinamis selama posisi terbuka"
+  ],
+
+  "actions": [
+    "Move SL", "Break Even", "Partial Close",
+    "Trailing Stop", "Scale Out", "Hold"
+  ],
+
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "action": {
+        "type": "string",
+        "enum": ["Move SL", "Break Even", "Partial Close", "Trailing Stop", "Scale Out", "Hold"],
+        "description": "Tindakan manajemen yang direkomendasikan"
+      },
+      "new_sl": {
+        "type": "number",
+        "description": "Level Stop Loss baru jika action = Move SL / Break Even / Trailing Stop"
+      }
+    },
+    "required": ["action", "new_sl"]
+  },
+
+  "rules": [
+    "Hanya return JSON, tidak boleh tambahan teks apapun",
+    "action = Hold jika tidak ada perubahan yang diperlukan",
+    "new_sl = 0 jika action bukan Move SL / Break Even / Trailing Stop",
+    "Break Even dilakukan saat harga mencapai 1:1 risk/reward",
+    "Partial Close = menutup 30-50% posisi di TP1",
+    "Trailing Stop diaktifkan setelah harga bergerak 2x SL distance",
+    "Scale Out = menutup posisi bertahap di beberapa level TP",
+    "Output harus valid JSON sesuai schema"
+  ]
+}

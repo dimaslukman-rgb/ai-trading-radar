@@ -48,6 +48,32 @@ def is_entry_session_open(config, now: datetime | None = None) -> bool:
     )
 
 
+def _check_circuit_breaker(
+    config,
+    daily_trade_count: int,
+    daily_realized_pnl: float,
+    equity: float,
+    balance: float,
+) -> str | None:
+    """Check daily circuit breakers and return a block reason if triggered, else None.
+
+    Checks:
+      - daily_trade_cap: max completed trades per day
+      - daily_loss_limit_pct: max realized loss as % of equity per day
+    """
+    # Trade count cap
+    if config.daily_trade_cap > 0 and daily_trade_count >= config.daily_trade_cap:
+        return f"daily trade cap reached ({daily_trade_count}/{config.daily_trade_cap})"
+
+    # Daily loss limit
+    if config.daily_loss_limit_pct > 0 and equity > 0:
+        loss_pct = -daily_realized_pnl / equity
+        if loss_pct >= config.daily_loss_limit_pct:
+            return f"daily loss limit triggered ({loss_pct*100:.2f}% >= {config.daily_loss_limit_pct*100:.0f}%)"
+
+    return None
+
+
 def entry_safety_blocks(
     config,
     quote,
@@ -55,9 +81,25 @@ def entry_safety_blocks(
     supports_attached_protection: bool,
     now: datetime | None = None,
     news_event: dict | None = None,
+    daily_trade_count: int = 0,
+    daily_realized_pnl: float = 0.0,
+    equity: float = 0.0,
+    balance: float = 0.0,
 ) -> list[str]:
     """Return fail-closed reasons that prevent a new entry order."""
     blocks: list[str] = []
+
+    # Daily circuit breakers
+    circuit = _check_circuit_breaker(
+        config,
+        daily_trade_count,
+        daily_realized_pnl,
+        equity,
+        balance,
+    )
+    if circuit:
+        blocks.append(circuit)
+
     if not is_entry_session_open(config, now):
         blocks.append(f"outside trading session (WIB {as_wib(now):%H:%M})")
     if config.news_filter_enabled and news_event:
@@ -97,7 +139,7 @@ def higher_timeframe_confirmation(
     if signal_action == "sell" and bullish and divergence > 1.0:
         return False, f"M5 strongly bullish ({divergence:.2f}%), skip SELL"
     direction = "bullish" if bullish else "bearish"
-    return True, f"M5 {direction} divergence {divergence:.2f}% — ok"
+    return True, f"M5 {direction} divergence {divergence:.2f}% -- ok"
 
 
 def compute_protective_prices(
@@ -136,6 +178,7 @@ class DecisionPlan:
     actions: tuple[PositionAction, ...]
     risk_exit: bool = False
     entry_block_reasons: tuple[str, ...] = ()
+    circuit_breaker_reason: str | None = None
 
 
 class TradingDecisionService:
@@ -145,6 +188,31 @@ class TradingDecisionService:
         self.config = config
         self.position_machine = position_machine
         self.risk_manager = ScalpingRiskManager(config)
+
+        # Daily stats for circuit breaker (reset at midnight WIB)
+        self._daily_trade_count: int = 0
+        self._daily_realized_pnl: float = 0.0
+        self._daily_reset_date: str | None = None
+
+    def _reset_daily_if_needed(self, now: datetime | None = None) -> None:
+        """Reset daily counters at midnight WIB."""
+        local = as_wib(now)
+        today = local.strftime("%Y-%m-%d")
+        if self._daily_reset_date != today:
+            self._daily_trade_count = 0
+            self._daily_realized_pnl = 0.0
+            self._daily_reset_date = today
+
+    def record_closed_trade(self, pnl: float) -> None:
+        """Record a closed trade for daily tracking."""
+        self._reset_daily_if_needed()
+        self._daily_trade_count += 1
+        self._daily_realized_pnl += pnl
+
+    def daily_stats(self) -> tuple[int, float]:
+        """Return (trade_count, realized_pnl) for today."""
+        self._reset_daily_if_needed()
+        return self._daily_trade_count, self._daily_realized_pnl
 
     def entry_quantity(
         self,
@@ -168,7 +236,11 @@ class TradingDecisionService:
         entry_block_reasons: list[str] | tuple[str, ...] = (),
         higher_timeframe_confirmed: bool = True,
         higher_timeframe_reason: str = "",
+        equity: float = 0.0,
+        balance: float = 0.0,
     ) -> DecisionPlan:
+        self._reset_daily_if_needed(now)
+
         risk_actions: list[PositionAction] = []
         for position in self.position_machine.active_positions(symbol):
             if position.phase == PositionPhase.CLOSING:
@@ -196,10 +268,26 @@ class TradingDecisionService:
         blockers = list(entry_block_reasons)
         if not higher_timeframe_confirmed:
             blockers.append(higher_timeframe_reason or "higher timeframe rejected entry")
+
+        # Pre-entry circuit breaker check
+        circuit = _check_circuit_breaker(
+            self.config,
+            self._daily_trade_count,
+            self._daily_realized_pnl,
+            equity,
+            balance,
+        )
+        if circuit:
+            blockers.append(circuit)
+
         actions = self.position_machine.plan_signal(
             signal_action,
             symbol,
             entry_allowed=not blockers,
             entry_block_reason="; ".join(blockers),
         )
-        return DecisionPlan(tuple(actions), entry_block_reasons=tuple(blockers))
+        return DecisionPlan(
+            tuple(actions),
+            entry_block_reasons=tuple(blockers),
+            circuit_breaker_reason=circuit,
+        )

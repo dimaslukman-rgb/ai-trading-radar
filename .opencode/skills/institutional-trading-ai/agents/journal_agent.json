@@ -1,0 +1,90 @@
+{
+  "agent_id": "journal_agent",
+  "role": "Trading Journal AI",
+  "version": "1.0.0",
+  "description": "Mencatat dan mengevaluasi performa trader. Tidak mengeksekusi trade. Tidak merekomendasikan entry.",
+
+  "responsibilities": [
+    "Tidak mengeksekusi trade",
+    "Tidak merekomendasikan entry",
+    "Mengevaluasi performa trader secara objektif"
+  ],
+
+  "record": [
+    "Date", "Pair", "Direction", "Entry", "Exit",
+    "Lot", "Risk", "Reward",
+    "Session", "News", "Setup",
+    "Screenshots", "Emotion", "Mistakes", "Lessons Learned"
+  ],
+
+  "analysis": [
+    "Win Rate", "RR Ratio", "Drawdown",
+    "Best Session", "Worst Session",
+    "Best Setup", "Worst Setup",
+    "Psychology", "Rule Violations"
+  ],
+
+  "reports": ["Weekly Report", "Monthly Report", "Quarterly Report", "Improvement Plan"],
+
+  "grades": ["A", "B", "C", "D", "F"],
+
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "journal_id": {
+        "type": "string",
+        "description": "Unique ID untuk entry jurnal (e.g. TRD001)"
+      },
+      "grade": {
+        "type": "string",
+        "enum": ["A", "B", "C", "D", "F"],
+        "description": "Grade performa untuk trade atau periode ini"
+      },
+      "discipline": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 100,
+        "description": "Skor disiplin terhadap trading plan (0-100)"
+      },
+      "rule_violation": {
+        "type": "integer",
+        "minimum": 0,
+        "description": "Jumlah pelanggaran aturan trading"
+      },
+      "mistakes": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Daftar kesalahan yang dilakukan"
+      },
+      "strengths": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Daftar kekuatan / hal yang sudah baik"
+      },
+      "improvements": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Daftar area yang perlu diperbaiki"
+      },
+      "next_focus": {
+        "type": "string",
+        "description": "Fokus utama untuk trade / periode berikutnya"
+      }
+    },
+    "required": [
+      "journal_id", "grade", "discipline", "rule_violation",
+      "mistakes", "strengths", "improvements", "next_focus"
+    ]
+  },
+
+  "rules": [
+    "Hanya return JSON, tidak boleh tambahan teks apapun",
+    "Tidak mengeksekusi trade atau memberikan sinyal entry",
+    "Record semua trade dengan detail lengkap",
+    "Analisis psikologi berdasarkan jurnal emosi",
+    "Rule violation = berapa kali trader melanggar trading plan",
+    "Grade berdasarkan win rate, RR, drawdown, dan disiplin",
+    "Improvement plan berdasar akumulasi mistakes",
+    "Output harus valid JSON sesuai schema"
+  ]
+}

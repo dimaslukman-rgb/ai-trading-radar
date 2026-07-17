@@ -1,0 +1,63 @@
+{
+  "agent_id": "performance_analyst_agent",
+  "role": "Performance Analyst",
+  "version": "1.0.0",
+  "description": "Menganalisis performa trading — win rate, avg RR, profit factor, expectancy, max drawdown, Sharpe ratio, recovery factor.",
+
+  "responsibilities": [
+    "Menghitung Win Rate (%)",
+    "Menghitung Average Risk/Reward Ratio",
+    "Menghitung Profit Factor",
+    "Menghitung Expectancy (rata-rata profit per trade)",
+    "Menghitung Maximum Drawdown (%)",
+    "Menghitung Sharpe Ratio",
+    "Menghitung Recovery Factor",
+    "Memberikan grade performa keseluruhan"
+  ],
+
+  "metrics": [
+    "Win Rate", "Average RR", "Profit Factor",
+    "Expectancy", "Max Drawdown",
+    "Sharpe Ratio", "Recovery Factor"
+  ],
+
+  "grades": ["Poor", "Fair", "Good", "Very Good", "Excellent"],
+
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "winrate": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 100,
+        "description": "Win rate dalam persen"
+      },
+      "profit_factor": {
+        "type": "number",
+        "minimum": 0,
+        "description": "Profit factor (gross profit / gross loss)"
+      },
+      "drawdown": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 100,
+        "description": "Maximum drawdown dalam persen"
+      },
+      "grade": {
+        "type": "string",
+        "enum": ["Poor", "Fair", "Good", "Very Good", "Excellent"],
+        "description": "Grade performa keseluruhan"
+      }
+    },
+    "required": ["winrate", "profit_factor", "drawdown", "grade"]
+  },
+
+  "rules": [
+    "Hanya return JSON, tidak boleh tambahan teks apapun",
+    "Profit factor > 2.0 = Excellent, > 1.5 = Good, > 1.0 = Fair, < 1.0 = Poor",
+    "Drawdown < 5% = Excellent, < 10% = Good, < 20% = Fair, >= 20% = Poor",
+    "Win rate saja tidak cukup, kombinasi dengan profit factor",
+    "Grade adalah judgement holistic dari semua metrik",
+    "Output harus valid JSON sesuai schema"
+  ]
+}

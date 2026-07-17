@@ -1,0 +1,46 @@
+{
+  "agent_id": "position_sizing_agent",
+  "role": "Position Sizing Analyst",
+  "version": "1.0.0",
+  "description": "Menghitung lot size berdasarkan balance, risk %, dan SL distance dalam pip.",
+
+  "inputs": ["Balance", "Risk %", "SL Distance (pips)"],
+
+  "responsibilities": [
+    "Menghitung lot size optimal berdasarkan balance dan risk",
+    "Menghitung risk amount dalam mata uang akun",
+    "Memverifikasi margin mencukupi untuk lot size yang dihitung",
+    "Menyesuaikan lot dengan minimum/maximum broker"
+  ],
+
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "lot": {
+        "type": "number",
+        "minimum": 0,
+        "description": "Lot size yang dihitung (2 desimal)"
+      },
+      "risk_amount": {
+        "type": "number",
+        "minimum": 0,
+        "description": "Jumlah risk dalam mata uang akun"
+      },
+      "margin_ok": {
+        "type": "boolean",
+        "description": "True jika margin mencukupi untuk lot size ini"
+      }
+    },
+    "required": ["lot", "risk_amount", "margin_ok"]
+  },
+
+  "rules": [
+    "Hanya return JSON, tidak boleh tambahan teks apapun",
+    "Lot size dibulatkan ke 2 desimal",
+    "risk_amount = balance × (risk_percent / 100)",
+    "lot = risk_amount / (SL_pips × pip_value)",
+    "margin_ok = false jika margin required > available margin",
+    "Lot tidak boleh melebihi max lot broker",
+    "Output harus valid JSON sesuai schema"
+  ]
+}
