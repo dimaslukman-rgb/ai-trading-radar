@@ -378,8 +378,8 @@ Legacy `AIB-...` serials (v2.x customers) are still accepted for backward compat
 
 <div align="center">
 
-**Made for XAUUSD scalping — v2.0.0 with Multi-Agent AI**
+**Made for XAUUSD scalping — v3.0.0 with Safety Controls & Modular Architecture**
 
-[Download v2.0.0](https://github.com/dimaslukman-rgb/ai-trading-radar/releases/tag/v2.0.0)  |  [Report Bug](https://github.com/dimaslukman-rgb/ai-trading-radar/issues)  |  [View Dashboard](http://127.0.0.1:9190)
+[Download v3.0.0](https://github.com/dimaslukman-rgb/ai-trading-radar/releases/tag/v3.0.0)  |  [Report Bug](https://github.com/dimaslukman-rgb/ai-trading-radar/issues)  |  [View Dashboard](http://127.0.0.1:9190)
 
 </div>
