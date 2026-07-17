@@ -186,7 +186,7 @@ AITradingRadar.exe [--skip-login] [--no-gui] [--auto-start]
 
 ```
 +---------------------------------------------------------------------+
-|                      AI TRADING RADAR v2.0.0                        |
+|                      AI TRADING RADAR v3.0.0                        |
 +----------+---------+-------------+----------+----------+-----------+
 |  Engine  | Broker  |  Dashboard  | Agents   | License  | Auto-     |
 |          |         |             |          |          | Update    |
