@@ -1,9 +1,9 @@
 @echo off
-title Building AI Trading Radar v3.0.0
+title Building AI Trading Radar v3.1.0
 cd /d "%~dp0"
 
 echo ========================================
-echo  AI Trading Radar v3.0.0 - Build EXE
+echo  AI Trading Radar v3.1.0 - Build EXE
 echo ========================================
 echo.
 

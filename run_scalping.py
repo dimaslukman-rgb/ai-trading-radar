@@ -146,6 +146,39 @@ def main():
     log.info(f"Config: {config_path}")
     log.info(f"Broker: {args.broker}")
 
+    # ── Ask and Inject MT5 Credentials ──────────────────────────────────
+    if args.broker == "mt5":
+        from aitrader_bot.app.login_dialog import ask_credentials_gui
+        creds = ask_credentials_gui()
+        if not creds.confirmed:
+            log.info("Login canceled by user. Exiting.")
+            sys.exit(0)
+        
+        import json
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                cfg_data = json.load(f)
+            
+            if "brokers" not in cfg_data:
+                cfg_data["brokers"] = {}
+            if "mt5" not in cfg_data["brokers"]:
+                cfg_data["brokers"]["mt5"] = {}
+                
+            cfg_data["brokers"]["mt5"]["server"] = creds.server
+            try:
+                cfg_data["brokers"]["mt5"]["login"] = int(creds.login)
+            except ValueError:
+                cfg_data["brokers"]["mt5"]["login"] = creds.login
+            cfg_data["brokers"]["mt5"]["password"] = creds.password
+            cfg_data["brokers"]["mt5"]["terminal_path"] = r"C:\Program Files\MetaTrader 5\terminal64.exe"
+            
+            with open(config_path, "w", encoding="utf-8") as f:
+                json.dump(cfg_data, f, indent=4)
+            log.info("Credentials successfully injected into config file")
+        except Exception as e:
+            log.error(f"Failed to inject credentials into config: {e}")
+            sys.exit(1)
+
     # ── Initialize Engine ──────────────────────────────────────────────
     engine = TradingEngine(str(config_path), args.broker)
     quit_requested = Event()
@@ -163,6 +196,10 @@ def main():
             continue
     if web_server is None:
         log.warning("Web dashboard: no available port (tried 8080-8083)")
+    else:
+        if dashboard_url:
+            webbrowser.open(dashboard_url)
+            log.info("Auto-opened web dashboard: %s", dashboard_url)
 
     # ── Start GUI Dashboard (optional, PyQt6) ──────────────────────────
     dashboard = None
@@ -228,6 +265,12 @@ def main():
                 except EOFError:
                     # stdin tidak tersedia (background/redirected mode)
                     # Bot tetap jalan, print queue messages periodically
+                    try:
+                        while not engine.queue.empty():
+                            msg = engine.queue.get_nowait()
+                            print(f"  [{msg.split(':')[0]}] {msg}")
+                    except Exception:
+                        pass
                     time.sleep(1)
                     continue
                 if cmd == "start":

@@ -552,6 +552,32 @@ tr:hover{background:rgba(0,255,136,.02)}
 </div>
 
 <script>
+window.onerror = function(message, source, lineno, colno, error) {
+  const errDiv = document.getElementById('visual-js-error') || document.createElement('div');
+  errDiv.id = 'visual-js-error';
+  errDiv.style.position = 'fixed';
+  errDiv.style.top = '10px';
+  errDiv.style.left = '10px';
+  errDiv.style.right = '10px';
+  errDiv.style.background = '#e64c4c';
+  errDiv.style.color = '#fff';
+  errDiv.style.padding = '20px';
+  errDiv.style.zIndex = '999999';
+  errDiv.style.fontFamily = 'monospace';
+  errDiv.style.borderRadius = '8px';
+  errDiv.style.border = '2px solid white';
+  errDiv.style.boxShadow = '0 0 20px rgba(0,0,0,0.5)';
+  errDiv.innerHTML = '<h3 style="margin-top:0;color:white;">JavaScript Error:</h3>' + 
+                     '<b>Message:</b> ' + message + '<br>' +
+                     '<b>Source:</b> ' + source + '<br>' +
+                     '<b>Line:</b> ' + lineno + ' <b>Col:</b> ' + colno + '<br>' +
+                     '<button onclick="location.reload()" style="margin-top:10px;padding:5px 10px;background:#fff;color:#000;border:none;border-radius:4px;cursor:pointer">Reload Page</button>';
+  if (!document.getElementById('visual-js-error')) {
+    document.body.appendChild(errDiv);
+  }
+  return false;
+};
+
 // ── TradingView XAUUSD Widget ────────────────────────────
 function initTradingView() {
   if (typeof TradingView === 'undefined') {

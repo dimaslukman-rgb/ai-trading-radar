@@ -2,7 +2,7 @@
 ; Build with Inno Setup Compiler (https://jrsoftware.org/isinfo.php)
 
 #define MyAppName "AI Trading Radar"
-#define MyAppVersion "3.0.0"
+#define MyAppVersion "3.1.0"
 #define MyAppPublisher "AI Trading Radar contributors"
 #define MyAppURL "https://github.com/dimaslukman-rgb/ai-trading-radar"
 #define MyAppExeName "AITradingRadar.exe"

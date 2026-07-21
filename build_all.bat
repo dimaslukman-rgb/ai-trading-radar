@@ -1,5 +1,5 @@
 @echo off
-title Build All - AI Trading Radar v3.0.0
+title Build All - AI Trading Radar v3.1.0
 cd /d "%~dp0"
 
 echo ========================================
@@ -44,6 +44,6 @@ if %errorlevel% neq 0 (
 echo.
 echo ========================================
 echo  SUCCESS!
-echo  Installer: installer_output\AITradingRadar_Setup_v3.0.0.exe
+echo  Installer: installer_output\AITradingRadar_Setup_v3.1.0.exe
 echo ========================================
 pause

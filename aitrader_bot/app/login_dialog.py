@@ -9,8 +9,7 @@ Muncul sebelum engine start, meminta:
 from __future__ import annotations
 
 import sys
-from dataclasses import dataclass, field
-from typing import Callable
+from dataclasses import dataclass
 
 from aitrader_bot.app.logger import setup_logging
 
@@ -34,12 +33,8 @@ def ask_credentials_console() -> LoginCredentials:
     return LoginCredentials(server=server, login=login, password=password, confirmed=True)
 
 
-def ask_credentials_gui(on_result: Callable[[LoginCredentials], None]) -> None:
-    """Tampilkan popup login PyQt6.
-
-    Args:
-        on_result: Callback yang dipanggil dengan LoginCredentials setelah user klik Connect / Cancel.
-    """
+def ask_credentials_gui() -> LoginCredentials:
+    """Tampilkan popup login PyQt6 dan kembalikan kredensial secara synchronous."""
     try:
         from PyQt6.QtCore import Qt
         from PyQt6.QtGui import QFont
@@ -55,9 +50,7 @@ def ask_credentials_gui(on_result: Callable[[LoginCredentials], None]) -> None:
         )
     except ImportError as e:
         log.warning(f"PyQt6 tidak terinstall, fallback ke console: {e}")
-        result = ask_credentials_console()
-        on_result(result)
-        return
+        return ask_credentials_console()
 
     app = QApplication.instance() or QApplication(sys.argv)
 
@@ -100,25 +93,24 @@ def ask_credentials_gui(on_result: Callable[[LoginCredentials], None]) -> None:
     btn_box.addButton(cancel_btn, QDialogButtonBox.ButtonRole.RejectRole)
     layout.addWidget(btn_box)
 
+    creds = LoginCredentials()
+
     def on_accept():
-        creds = LoginCredentials(
-            server=server_input.text().strip(),
-            login=login_input.text().strip(),
-            password=password_input.text(),
-            confirmed=True,
-        )
+        nonlocal creds
+        creds.server = server_input.text().strip()
+        creds.login = login_input.text().strip()
+        creds.password = password_input.text()
+        creds.confirmed = True
         dialog.accept()
-        on_result(creds)
 
     def on_reject():
-        creds = LoginCredentials(confirmed=False)
+        nonlocal creds
+        creds.confirmed = False
         dialog.reject()
-        on_result(creds)
 
     connect_btn.clicked.connect(on_accept)
     cancel_btn.clicked.connect(on_reject)
-
-    # Enter key triggers connect
     password_input.returnPressed.connect(on_accept)
 
     dialog.exec()
+    return creds
