@@ -4,7 +4,7 @@
 
 **Professional Multi-Factor Analysis Engine — XAUUSD Scalping for MT5/Finex**
 
-[![Version](https://img.shields.io/badge/version-3.0.0-00ff88?style=for-the-badge&labelColor=0a0e17)](https://github.com/dimaslukman-rgb/ai-trading-radar/releases)
+[![Version](https://img.shields.io/badge/version-3.1.0-00ff88?style=for-the-badge&labelColor=0a0e17)](https://github.com/dimaslukman-rgb/ai-trading-radar/releases)
 [![Python](https://img.shields.io/badge/Python-3.10+-00d4ff?style=for-the-badge&labelColor=0a0e17&logo=python&logoColor=00d4ff)](https://python.org)
 [![License](https://img.shields.io/badge/License-Proprietary-a855f7?style=for-the-badge&labelColor=0a0e17)]()
 [![Platform](https://img.shields.io/badge/Platform-Windows-ffaa00?style=for-the-badge&labelColor=0a0e17&logo=windows&logoColor=ffaa00)]()
@@ -17,14 +17,21 @@ Live AI-powered scalping signals, real-time dashboard, and automated MT5 executi
 
 ---
 
-## What's New in v3.0.0
+## What's New in v3.1.0
+
+- **Robust config safety limits** — higher confidence threshold (min_buy_score: 0.35, min_sell_score: -0.30) to filter market noise and prevent overtrading.
+- **Improved execution safety** — strict max spread limits (max_spread_points: 25.0) and optimal trailing stop (5.0 pips) to prevent premature position closing.
+- **Timeframe & Session filter** — optimized loop interval to 60s per M1 candle, only executing trades during high-liquidity London & New York session.
+- **Unified package versions** — synchronized all package structures, metadata, and installers to v3.1.0.
+
+## What's New in v3.0.0 (Archived)
 
 - **Multi-pair engine** — one isolated processor, state machine, strategy, and risk service per configured symbol.
 - **Adaptive intelligence** — bounded performance weighting for agent votes, ATR-based protective pricing (opt-in), and optional Gemini macro context.
 - **Transparent dashboard** — symbol selector, account equity curve, Chief Trader decision, and compact per-agent reasoning.
 - **Operational tooling** — offline optimizer report, richer Telegram close/P&L reports, and Docker deployment for non-MT5 workflows.
 
-Read [the v3 guide](docs/v3.0.0.md) before enabling multi-pair, agent execution, Gemini, or ATR protection on a live account.
+Read [the v3 guide](docs/v3.0.0.md) before enabling multi-pair, agent execution, Gemini, or ATR protection on a live account. (Note: config limits optimized in v3.1.0).
 
 ## v2.0.0 foundation
 
@@ -366,7 +373,7 @@ The issued serial is saved to `%APPDATA%\AITradingRadar\license.json`.
 CLI helpers:
 
 ```powershell
-python run_scalping.py --version            # print AI Trading Radar v3.0.0
+python run_scalping.py --version            # print AI Trading Radar v3.1.0
 python run_scalping.py --activate-serial XXXXX-XXXXX-XXXXX-XXXXX-XXXXX-XXXXX-XXXXX-X  # activate without GUI
 python run_scalping.py --reset-license      # clear stored license
 python run_scalping.py --check-update       # check latest GitHub release
@@ -378,8 +385,8 @@ Legacy `AIB-...` serials (v2.x customers) are still accepted for backward compat
 
 <div align="center">
 
-**Made for XAUUSD scalping — v3.0.0 with Safety Controls & Modular Architecture**
+**Made for XAUUSD scalping — v3.1.0 with Safety Controls & Modular Architecture**
 
-[Download v3.0.0](https://github.com/dimaslukman-rgb/ai-trading-radar/releases/tag/v3.0.0)  |  [Report Bug](https://github.com/dimaslukman-rgb/ai-trading-radar/issues)  |  [View Dashboard](http://127.0.0.1:9190)
+[Download v3.1.0](https://github.com/dimaslukman-rgb/ai-trading-radar/releases/tag/v3.1.0)  |  [Report Bug](https://github.com/dimaslukman-rgb/ai-trading-radar/issues)  |  [View Dashboard](http://127.0.0.1:9190)
 
 </div>
